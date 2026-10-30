@@ -1,0 +1,1310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0a08">
+<meta name="description" content="A Witcher-themed wheel of fortune that randomly assigns Gwent decks to players.">
+<title>Wheel of Destiny — Gwent Deck Picker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=IM+Fell+English:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0b0a08;
+    --bg-2: #15110a;
+    --panel: rgba(24, 19, 12, 0.82);
+    --panel-border: rgba(200, 160, 79, 0.28);
+    --gold: #c8a04f;
+    --gold-bright: #ecd28a;
+    --gold-dim: #8a6b2e;
+    --parchment: #ead9b4;
+    --parchment-dim: #b9a784;
+    --ink: #1b1611;
+    --blood: #8f2b2b;
+    --font-display: 'Cinzel', 'Trajan Pro', 'Palatino Linotype', Georgia, serif;
+    --font-body: 'IM Fell English', 'Palatino Linotype', 'Book Antiqua', Georgia, serif;
+    --radius: 10px;
+    --shadow: 0 18px 50px rgba(0, 0, 0, 0.6);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    color: var(--parchment);
+    font-family: var(--font-body);
+    font-size: 17px;
+    line-height: 1.45;
+    background:
+      radial-gradient(ellipse 120% 70% at 50% -20%, #4a3514 0%, #1c150b 40%, transparent 70%),
+      radial-gradient(ellipse 80% 60% at 50% 110%, #2a1208 0%, transparent 60%),
+      var(--bg);
+    background-attachment: fixed;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  body::before {
+    content: "";
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    opacity: 0.08; mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  body::after {
+    content: "";
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.65) 100%);
+  }
+
+  /* ---------- Embers ---------- */
+  .embers { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+  .ember {
+    position: absolute; bottom: -10px;
+    width: 4px; height: 4px; border-radius: 50%;
+    background: radial-gradient(circle, #ffd27a 0%, #ff8a2a 45%, rgba(255,120,30,0) 70%);
+    filter: blur(0.4px);
+    opacity: 0;
+    animation: rise linear infinite;
+  }
+  @keyframes rise {
+    0%   { transform: translate3d(0, 0, 0) scale(1); opacity: 0; }
+    10%  { opacity: 0.9; }
+    50%  { transform: translate3d(var(--dx), -50vh, 0) scale(0.8); opacity: 0.6; }
+    100% { transform: translate3d(calc(var(--dx) * -0.6), -105vh, 0) scale(0.3); opacity: 0; }
+  }
+
+  /* ---------- Top bar ---------- */
+  .topbar {
+    position: relative; z-index: 2;
+    display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+    max-width: 1180px; margin: 0 auto;
+    padding: calc(0.9rem + env(safe-area-inset-top)) 1.25rem 0.5rem;
+  }
+  .brand { display: flex; align-items: baseline; gap: 0.8rem; min-width: 0; }
+  .brand h1 {
+    margin: 0;
+    font-family: var(--font-display); font-weight: 700;
+    font-size: clamp(1.15rem, 2.6vw, 1.7rem); letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--gold-bright);
+    text-shadow: 0 0 18px rgba(236, 210, 138, 0.25), 0 2px 0 rgba(0,0,0,0.6);
+    white-space: nowrap;
+  }
+  .brand .sub {
+    font-style: italic; color: var(--parchment-dim); font-size: 0.95rem; white-space: nowrap;
+  }
+  .actions { display: flex; gap: 0.5rem; flex-shrink: 0; }
+
+  .icon-btn {
+    appearance: none; cursor: pointer;
+    width: 42px; height: 42px; border-radius: 50%;
+    display: inline-grid; place-items: center;
+    background: linear-gradient(180deg, rgba(60,46,22,0.9), rgba(28,22,12,0.95));
+    border: 1px solid var(--panel-border);
+    color: var(--gold);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 12px rgba(0,0,0,0.4);
+    transition: transform .15s ease, border-color .15s ease, color .15s ease;
+  }
+  .icon-btn:hover { transform: translateY(-1px); border-color: var(--gold); color: var(--gold-bright); }
+  .icon-btn:active { transform: translateY(0); }
+  .icon-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .icon-btn[aria-pressed="true"] .off { display: none; }
+  .icon-btn[aria-pressed="false"] .on { display: none; }
+
+  /* ---------- Layout ---------- */
+  .layout {
+    position: relative; z-index: 1;
+    display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 2rem;
+    max-width: 1180px; margin: 0 auto;
+    padding: 0.5rem 1.25rem calc(2.5rem + env(safe-area-inset-bottom));
+    align-items: start;
+  }
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; gap: 1.25rem; }
+  }
+
+  .wheel-panel { display: flex; flex-direction: column; align-items: center; gap: 1rem; }
+
+  .turn-banner {
+    font-family: var(--font-display); font-size: clamp(0.95rem, 2.2vw, 1.2rem);
+    letter-spacing: 0.08em; text-transform: uppercase; text-align: center;
+    color: var(--parchment-dim); min-height: 1.6em;
+  }
+  .turn-banner strong { color: var(--gold-bright); font-weight: 700; }
+  .turn-banner .meta { display: block; font-family: var(--font-body); text-transform: none; letter-spacing: 0; font-style: italic; font-size: 0.95rem; color: var(--parchment-dim); margin-top: 0.15rem; }
+  .turn-banner .warn { color: #e2a35a; }
+
+  /* ---------- Wheel ---------- */
+  .wheel-wrap {
+    position: relative;
+    width: min(100%, 66vh, 580px);
+    aspect-ratio: 1 / 1;
+    margin: 0.4rem auto 0;
+    user-select: none; -webkit-user-select: none;
+  }
+  .wheel-wrap::before {
+    /* ambient glow behind the wheel */
+    content: ""; position: absolute; inset: -8%; border-radius: 50%; z-index: 0;
+    background: radial-gradient(circle, rgba(200,160,79,0.18) 0%, rgba(200,160,79,0.05) 45%, transparent 70%);
+    pointer-events: none;
+    transition: opacity .6s ease;
+  }
+  .wheel-wrap.spinning::before { opacity: 1.6; }
+  canvas#wheel {
+    position: relative; z-index: 1;
+    width: 100%; height: 100%; display: block; border-radius: 50%;
+    filter: drop-shadow(0 24px 40px rgba(0,0,0,0.65));
+    touch-action: manipulation;
+  }
+
+  .pointer {
+    position: absolute; z-index: 3;
+    top: -3.5%; left: 50%; width: 11%; aspect-ratio: 1 / 1.25;
+    transform: translateX(-50%);
+    transform-origin: 50% 18%;
+    pointer-events: none;
+    filter: drop-shadow(0 6px 8px rgba(0,0,0,0.6));
+  }
+  .pointer svg { width: 100%; height: 100%; display: block; }
+  .pointer.nudge { animation: nudge .11s ease-out; }
+  @keyframes nudge {
+    0% { transform: translateX(-50%) rotate(0); }
+    40% { transform: translateX(-50%) rotate(-14deg); }
+    100% { transform: translateX(-50%) rotate(0); }
+  }
+
+  .hub {
+    position: absolute; z-index: 4;
+    left: 50%; top: 50%; width: 24%; aspect-ratio: 1;
+    transform: translate(-50%, -50%);
+    border-radius: 50%; cursor: pointer; appearance: none;
+    border: none; padding: 0;
+    background:
+      radial-gradient(circle at 50% 35%, #3b2d14 0%, #1b1409 60%, #0d0a05 100%);
+    box-shadow:
+      0 0 0 3px #3a2b10,
+      0 0 0 6px var(--gold),
+      0 0 0 8px #2a1e0a,
+      inset 0 0 24px rgba(0,0,0,0.9),
+      0 10px 30px rgba(0,0,0,0.7);
+    display: grid; place-items: center;
+    color: var(--gold-bright);
+    font-family: var(--font-display); font-weight: 900; letter-spacing: 0.18em;
+    font-size: clamp(0.65rem, 1.7vw, 1.05rem);
+    text-shadow: 0 0 10px rgba(236,210,138,0.45), 0 1px 0 #000;
+    transition: transform .18s ease, box-shadow .25s ease;
+  }
+  .hub::before {
+    content: ""; position: absolute; inset: 14%; border-radius: 50%;
+    border: 1px solid rgba(200,160,79,0.35);
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.6);
+    pointer-events: none;
+  }
+  .hub span { position: relative; z-index: 1; padding-left: 0.18em; }
+  .hub:hover:not(:disabled) {
+    transform: translate(-50%, -50%) scale(1.04);
+    box-shadow:
+      0 0 0 3px #3a2b10, 0 0 0 6px var(--gold-bright), 0 0 0 8px #2a1e0a,
+      inset 0 0 24px rgba(0,0,0,0.9), 0 0 36px rgba(236,210,138,0.35), 0 10px 30px rgba(0,0,0,0.7);
+  }
+  .hub:active:not(:disabled) { transform: translate(-50%, -50%) scale(0.98); }
+  .hub:disabled { cursor: default; color: var(--gold-dim); }
+  .hub:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 10px; }
+
+  /* ---------- Controls ---------- */
+  .controls { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.75rem; margin-top: 0.6rem; }
+  .btn {
+    appearance: none; cursor: pointer;
+    font-family: var(--font-display); font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+    font-size: 0.9rem; padding: 0.85rem 1.6rem; border-radius: 6px;
+    border: 1px solid var(--gold-dim);
+    color: var(--parchment);
+    background: linear-gradient(180deg, rgba(58,44,20,0.95), rgba(30,23,12,0.98));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 6px 16px rgba(0,0,0,0.45);
+    transition: transform .15s ease, box-shadow .2s ease, border-color .15s ease, opacity .2s ease;
+    position: relative;
+  }
+  .btn:hover:not(:disabled) { transform: translateY(-1px); border-color: var(--gold); box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 10px 22px rgba(0,0,0,0.5); }
+  .btn:active:not(:disabled) { transform: translateY(0); }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 3px; }
+  .btn.primary {
+    color: var(--ink);
+    border-color: #6e5420;
+    background: linear-gradient(180deg, #f1d996 0%, #c8a04f 55%, #a67d31 100%);
+    text-shadow: 0 1px 0 rgba(255,255,255,0.35);
+  }
+  .btn.primary:hover:not(:disabled) { background: linear-gradient(180deg, #fbe7aa 0%, #d6ad58 55%, #b08636 100%); }
+  .btn.ghost { background: transparent; border-color: rgba(200,160,79,0.35); color: var(--parchment-dim); }
+  .btn.ghost:hover:not(:disabled) { color: var(--parchment); }
+
+  .remaining {
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 0.45rem;
+    margin: 0.3rem 0 0; padding: 0; list-style: none; max-width: 620px;
+  }
+  .chip {
+    display: inline-flex; align-items: center; gap: 0.45rem;
+    padding: 0.3rem 0.7rem; border-radius: 999px; font-size: 0.9rem;
+    border: 1px solid rgba(200,160,79,0.25);
+    background: rgba(20,16,9,0.7);
+    color: var(--parchment);
+    transition: opacity .3s ease;
+  }
+  .chip .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 1px rgba(0,0,0,0.6), 0 0 8px var(--c); }
+  .chip.taken { opacity: 0.4; text-decoration: line-through; text-decoration-color: var(--gold-dim); }
+
+  /* ---------- Ledger ---------- */
+  .ledger {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,0.04);
+    padding: 1.1rem 1.2rem 1.3rem;
+    backdrop-filter: blur(6px);
+    position: relative;
+  }
+  .ledger::before, .ledger::after {
+    content: "❧"; position: absolute; color: var(--gold-dim); font-size: 1.1rem; opacity: .7;
+  }
+  .ledger::before { top: 6px; left: 10px; }
+  .ledger::after { bottom: 4px; right: 10px; transform: scale(-1, -1); }
+  .ledger h2 {
+    margin: 0 0 0.8rem; text-align: center;
+    font-family: var(--font-display); font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase;
+    font-size: 1rem; color: var(--gold);
+  }
+  .ledger h2::after {
+    content: ""; display: block; height: 1px; margin: 0.6rem auto 0; width: 60%;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  }
+  .ledger ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+  .ledger li {
+    display: grid; grid-template-columns: 34px 1fr; align-items: center; gap: 0.7rem;
+    padding: 0.55rem 0.6rem; border-radius: 8px;
+    background: rgba(0,0,0,0.25); border: 1px solid rgba(200,160,79,0.14);
+    animation: reveal .5s ease both;
+  }
+  @keyframes reveal { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .ledger .seal-sm {
+    width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center;
+    background: radial-gradient(circle at 40% 35%, color-mix(in srgb, var(--c) 70%, white 10%), var(--c) 60%, color-mix(in srgb, var(--c) 60%, black) 100%);
+    box-shadow: 0 0 0 2px #1c150a, 0 0 0 3px var(--gold-dim), 0 4px 10px rgba(0,0,0,.6);
+    color: #f6e9c6; font-size: 1.05rem; text-shadow: 0 1px 2px rgba(0,0,0,.8);
+  }
+  .ledger .who { font-size: 0.85rem; color: var(--parchment-dim); letter-spacing: 0.04em; text-transform: uppercase; font-family: var(--font-display); }
+  .ledger .what { font-size: 1.05rem; color: var(--parchment); line-height: 1.2; }
+  .ledger-empty { text-align: center; font-style: italic; color: var(--parchment-dim); padding: 0.6rem 0 0.2rem; }
+  .ledger .pending { opacity: 0.55; }
+  .ledger .pending .seal-sm { background: rgba(255,255,255,0.04); box-shadow: 0 0 0 1px rgba(200,160,79,0.25) inset; color: var(--gold-dim); }
+
+  /* ---------- Overlay ---------- */
+  .overlay {
+    position: fixed; inset: 0; z-index: 50;
+    display: grid; place-items: center; padding: 1.25rem;
+    background: radial-gradient(ellipse at center, rgba(10,8,4,0.55) 0%, rgba(5,4,2,0.9) 100%);
+    backdrop-filter: blur(5px);
+    animation: fade .35s ease both;
+  }
+  .overlay[hidden] { display: none; }
+  @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+  .card {
+    position: relative; width: min(100%, 460px);
+    padding: 2.2rem 1.8rem 1.8rem; text-align: center;
+    border-radius: 14px;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.03), transparent 30%),
+      linear-gradient(180deg, #221a0e 0%, #130e07 100%);
+    border: 1px solid rgba(200,160,79,0.5);
+    box-shadow: 0 0 0 6px #0f0b05, 0 0 0 7px rgba(200,160,79,0.35), 0 30px 80px rgba(0,0,0,0.8), 0 0 80px rgba(200,160,79,0.12);
+    animation: cardIn .55s cubic-bezier(.2,.9,.25,1.2) both;
+  }
+  @keyframes cardIn { from { opacity: 0; transform: translateY(18px) scale(.94); } to { opacity: 1; transform: none; } }
+  .card .corner { position: absolute; width: 22px; height: 22px; border-color: var(--gold); border-style: solid; border-width: 0; opacity: .8; }
+  .card .corner.tl { top: 10px; left: 10px; border-top-width: 2px; border-left-width: 2px; }
+  .card .corner.tr { top: 10px; right: 10px; border-top-width: 2px; border-right-width: 2px; }
+  .card .corner.bl { bottom: 10px; left: 10px; border-bottom-width: 2px; border-left-width: 2px; }
+  .card .corner.br { bottom: 10px; right: 10px; border-bottom-width: 2px; border-right-width: 2px; }
+  .seal {
+    width: 92px; height: 92px; margin: 0 auto 1rem; border-radius: 50%;
+    display: grid; place-items: center; font-size: 2.6rem; color: #f8ecc9;
+    text-shadow: 0 2px 4px rgba(0,0,0,.8);
+    background: radial-gradient(circle at 40% 35%, color-mix(in srgb, var(--c) 70%, white 12%), var(--c) 55%, color-mix(in srgb, var(--c) 55%, black) 100%);
+    box-shadow: 0 0 0 4px #15100a, 0 0 0 6px var(--gold), 0 0 0 9px #15100a, 0 0 40px color-mix(in srgb, var(--c) 60%, transparent), 0 12px 30px rgba(0,0,0,.7);
+    animation: sealPulse 2.4s ease-in-out infinite;
+  }
+  @keyframes sealPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.04); } }
+  .eyebrow { margin: 0; font-family: var(--font-display); letter-spacing: 0.2em; text-transform: uppercase; font-size: 0.78rem; color: var(--parchment-dim); }
+  .eyebrow strong { color: var(--gold-bright); }
+  .card h2 {
+    margin: 0.35rem 0 0.4rem; font-family: var(--font-display); font-weight: 900;
+    font-size: clamp(1.6rem, 6vw, 2.3rem); line-height: 1.1; letter-spacing: 0.04em;
+    color: var(--gold-bright); text-shadow: 0 0 24px rgba(236,210,138,0.3), 0 2px 0 #000;
+  }
+  .flavor { margin: 0.4rem 0 1.4rem; font-style: italic; color: var(--parchment-dim); font-size: 1.05rem; }
+  .card .btn { min-width: 180px; }
+  .summary { list-style: none; margin: 0.8rem 0 1.4rem; padding: 0; display: flex; flex-direction: column; gap: 0.45rem; text-align: left; }
+  .summary li { display: flex; align-items: center; gap: 0.7rem; padding: 0.5rem 0.7rem; border-radius: 8px; background: rgba(0,0,0,0.3); border: 1px solid rgba(200,160,79,0.14); }
+  .summary .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 1px #000, 0 0 10px var(--c); flex-shrink: 0; }
+  .summary .who { font-family: var(--font-display); font-size: 0.8rem; letter-spacing: .06em; text-transform: uppercase; color: var(--parchment-dim); flex: 1; }
+  .summary .what { color: var(--parchment); }
+  .card .row { display: flex; gap: 0.6rem; justify-content: center; flex-wrap: wrap; }
+
+  /* ---------- Settings dialog ---------- */
+  dialog.dialog {
+    padding: 0; border: none; background: transparent; color: inherit;
+    width: min(100% - 1.5rem, 620px); max-height: min(92dvh, 860px);
+    margin: auto;
+  }
+  dialog.dialog::backdrop { background: rgba(4,3,1,0.78); backdrop-filter: blur(4px); }
+  .dialog-inner {
+    margin: 0; display: flex; flex-direction: column; max-height: min(92dvh, 860px);
+    background: linear-gradient(180deg, #211a0e 0%, #130e07 100%);
+    border: 1px solid rgba(200,160,79,0.5); border-radius: 14px;
+    box-shadow: 0 0 0 6px #0f0b05, 0 0 0 7px rgba(200,160,79,0.35), 0 30px 80px rgba(0,0,0,0.8);
+    overflow: hidden;
+  }
+  .dialog-inner header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1rem 1.1rem 0.8rem; border-bottom: 1px solid rgba(200,160,79,0.2);
+  }
+  .dialog-inner h2 { margin: 0; font-family: var(--font-display); font-size: 1.05rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--gold); }
+  .dialog-body { overflow-y: auto; padding: 0.4rem 1.1rem 0.6rem; overscroll-behavior: contain; }
+  .dialog-body section { padding: 0.9rem 0; }
+  .dialog-body section + section { border-top: 1px dashed rgba(200,160,79,0.2); }
+  .dialog-body h3 { margin: 0 0 0.6rem; font-family: var(--font-display); font-size: 0.82rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--parchment-dim); display: flex; justify-content: space-between; align-items: baseline; }
+  .dialog-body h3 small { font-family: var(--font-body); text-transform: none; letter-spacing: 0; font-style: italic; font-weight: normal; }
+  .edit-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.45rem; }
+  .edit-list li { display: flex; align-items: center; gap: 0.6rem; padding: 0.4rem 0.5rem; border-radius: 8px; background: rgba(0,0,0,0.28); border: 1px solid rgba(200,160,79,0.14); }
+  .edit-list li.off { opacity: 0.55; }
+  .edit-list .idx { font-family: var(--font-display); color: var(--gold-dim); font-size: 0.8rem; width: 1.2rem; text-align: right; }
+  .swatch { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0; background: var(--c); box-shadow: 0 0 0 2px #15100a, 0 0 0 3px var(--gold-dim); color: #f6e9c6; font-size: 0.85rem; text-shadow: 0 1px 2px #000; }
+  .text-input {
+    flex: 1; min-width: 0; appearance: none;
+    font: inherit; color: var(--parchment); font-size: 1rem;
+    background: rgba(0,0,0,0.3); border: 1px solid rgba(200,160,79,0.22); border-radius: 6px;
+    padding: 0.45rem 0.6rem; outline: none;
+    transition: border-color .15s ease, box-shadow .15s ease;
+  }
+  .text-input:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(200,160,79,0.15); }
+  .text-input::placeholder { color: rgba(185,167,132,0.6); font-style: italic; }
+  .toggle { position: relative; width: 44px; height: 24px; flex-shrink: 0; }
+  .toggle input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+  .toggle .track { position: absolute; inset: 0; border-radius: 999px; background: rgba(0,0,0,0.45); border: 1px solid rgba(200,160,79,0.3); transition: background .2s ease; }
+  .toggle .knob { position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--parchment-dim); transition: transform .2s ease, background .2s ease; }
+  .toggle input:checked ~ .track { background: rgba(200,160,79,0.35); }
+  .toggle input:checked ~ .knob { transform: translateX(20px); background: var(--gold-bright); }
+  .toggle input:focus-visible ~ .track { outline: 2px solid var(--gold-bright); outline-offset: 2px; }
+  .mini-btn {
+    appearance: none; cursor: pointer; width: 32px; height: 32px; border-radius: 6px; flex-shrink: 0;
+    border: 1px solid rgba(200,160,79,0.22); background: rgba(0,0,0,0.3); color: var(--parchment-dim);
+    display: grid; place-items: center; font-size: 1rem; transition: color .15s, border-color .15s;
+  }
+  .mini-btn:hover:not(:disabled) { color: #e2a35a; border-color: #e2a35a; }
+  .mini-btn:disabled { opacity: .3; cursor: not-allowed; }
+  .mini-btn.ghost-slot { visibility: hidden; }
+  .add-row { display: flex; gap: 0.5rem; margin-top: 0.6rem; }
+  .add-row .btn { padding: 0.55rem 1rem; font-size: 0.78rem; }
+  .check { display: flex; align-items: center; gap: 0.7rem; margin-top: 0.9rem; cursor: pointer; }
+  .check span { flex: 1; }
+  .dialog-inner footer {
+    display: flex; gap: 0.6rem; justify-content: space-between; flex-wrap: wrap;
+    padding: 0.9rem 1.1rem calc(1rem + env(safe-area-inset-bottom)); border-top: 1px solid rgba(200,160,79,0.2);
+    background: rgba(0,0,0,0.2);
+  }
+  .dialog-inner footer .btn { padding: 0.7rem 1.1rem; font-size: 0.8rem; }
+  .hint { font-size: 0.9rem; font-style: italic; color: var(--parchment-dim); margin: 0.5rem 0 0; }
+  .error { color: #e08a7a; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: calc(1.4rem + env(safe-area-inset-bottom)); transform: translateX(-50%) translateY(20px);
+    z-index: 60; padding: 0.7rem 1.1rem; border-radius: 8px; font-style: italic;
+    background: rgba(20,15,8,0.95); border: 1px solid rgba(200,160,79,0.4); color: var(--parchment);
+    box-shadow: 0 10px 30px rgba(0,0,0,.6); opacity: 0; pointer-events: none;
+    transition: opacity .25s ease, transform .25s ease; max-width: calc(100% - 2rem); text-align: center;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  footer.credits { position: relative; z-index: 1; text-align: center; font-size: 0.8rem; color: rgba(185,167,132,0.6); font-style: italic; padding: 0 1rem 1.5rem; }
+
+  @media (max-width: 480px) {
+    body { font-size: 16px; }
+    .brand .sub { display: none; }
+    .controls .btn { flex: 1 1 auto; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .embers { display: none; }
+    .seal { animation: none; }
+    .card, .overlay, .ledger li { animation-duration: .01s; }
+  }
+</style>
+</head>
+<body>
+<div class="embers" id="embers" aria-hidden="true"></div>
+
+<header class="topbar">
+  <div class="brand">
+    <h1>Wheel of Destiny</h1>
+    <span class="sub">a Gwent deck picker</span>
+  </div>
+  <div class="actions">
+    <button id="btnSound" class="icon-btn" type="button" aria-pressed="true" aria-label="Toggle sound" title="Toggle sound">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M4 9v6h4l5 4V5L8 9H4z"/>
+        <path class="on" d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/>
+        <path class="off" d="M17 9l5 6M22 9l-5 6"/>
+      </svg>
+    </button>
+    <button id="btnSettings" class="icon-btn" type="button" aria-label="Decks and players" title="Decks and players">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>
+      </svg>
+    </button>
+  </div>
+</header>
+
+<main class="layout">
+  <section class="wheel-panel" aria-label="Wheel">
+    <div class="turn-banner" id="turnBanner" aria-live="polite"></div>
+
+    <div class="wheel-wrap" id="wheelWrap">
+      <div class="pointer" id="pointer" aria-hidden="true">
+        <svg viewBox="0 0 60 76">
+          <defs>
+            <linearGradient id="pg" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#f3dc9a"/>
+              <stop offset=".5" stop-color="#c8a04f"/>
+              <stop offset="1" stop-color="#8a6b2e"/>
+            </linearGradient>
+          </defs>
+          <path d="M30 74 L6 22 Q30 2 54 22 Z" fill="url(#pg)" stroke="#3a2b10" stroke-width="2.5" stroke-linejoin="round"/>
+          <circle cx="30" cy="20" r="7" fill="#1b1409" stroke="#ecd28a" stroke-width="2"/>
+          <circle cx="30" cy="20" r="2.5" fill="#c8a04f"/>
+        </svg>
+      </div>
+      <canvas id="wheel" role="img" aria-label="Wheel of remaining decks"></canvas>
+      <button id="btnHub" class="hub" type="button" aria-label="Spin the wheel"><span>SPIN</span></button>
+    </div>
+
+    <div class="controls">
+      <button id="btnSpin" class="btn primary" type="button">Spin the Wheel</button>
+      <button id="btnReset" class="btn ghost" type="button">Start Over</button>
+    </div>
+
+    <ul class="remaining" id="remainingChips" aria-label="Decks in play"></ul>
+  </section>
+
+  <aside class="ledger" aria-label="Assigned decks">
+    <h2>The Ledger</h2>
+    <ol id="ledgerList"></ol>
+    <div class="ledger-empty" id="ledgerEmpty" hidden>No decks dealt yet.</div>
+  </aside>
+</main>
+
+<footer class="credits">“Gwent? I’m in.” · Fan-made, unofficial. Runs entirely in your browser.</footer>
+
+<div class="overlay" id="resultOverlay" hidden role="dialog" aria-modal="true" aria-labelledby="resultTitle">
+  <div class="card">
+    <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+    <div class="seal" id="resultSeal"></div>
+    <p class="eyebrow" id="resultEyebrow"></p>
+    <h2 id="resultTitle"></h2>
+    <p class="flavor" id="resultFlavor"></p>
+    <button class="btn primary" id="btnContinue" type="button">Continue</button>
+  </div>
+</div>
+
+<div class="overlay" id="finalOverlay" hidden role="dialog" aria-modal="true" aria-labelledby="finalTitle">
+  <div class="card">
+    <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+    <p class="eyebrow">Destiny has spoken</p>
+    <h2 id="finalTitle">The Decks Are Dealt</h2>
+    <ul class="summary" id="finalSummary"></ul>
+    <div class="row">
+      <button class="btn primary" id="btnPlayAgain" type="button">Deal Again</button>
+      <button class="btn ghost" id="btnChangeSetup" type="button">Change Setup</button>
+    </div>
+  </div>
+</div>
+
+<dialog class="dialog" id="settingsDialog" aria-labelledby="settingsTitle">
+  <form class="dialog-inner" id="settingsForm" method="dialog">
+    <header>
+      <h2 id="settingsTitle">Prepare the Table</h2>
+      <button type="button" class="icon-btn" id="btnCloseSettings" aria-label="Close">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </header>
+    <div class="dialog-body">
+      <section>
+        <h3>Decks <small id="deckCount"></small></h3>
+        <ul class="edit-list" id="deckList"></ul>
+        <div class="add-row">
+          <input class="text-input" id="newDeckName" type="text" placeholder="Add a custom deck… (e.g. Eredin’s Wild Hunt)" maxlength="32" autocomplete="off">
+          <button type="button" class="btn" id="btnAddDeck">Add</button>
+        </div>
+      </section>
+      <section>
+        <h3>Players <small id="playerCount"></small></h3>
+        <ul class="edit-list" id="playerList"></ul>
+        <div class="add-row">
+          <button type="button" class="btn" id="btnAddPlayer">+ Add player</button>
+        </div>
+        <label class="check">
+          <span class="toggle"><input type="checkbox" id="optShuffle"><span class="track"></span><span class="knob"></span></span>
+          <span>Shuffle player order each game</span>
+        </label>
+        <p class="hint" id="settingsHint"></p>
+      </section>
+    </div>
+    <footer>
+      <button type="button" class="btn ghost" id="btnDefaults">Restore defaults</button>
+      <button type="button" class="btn primary" id="btnSaveSettings">Save &amp; start new game</button>
+    </footer>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+  'use strict';
+
+  /* =========================================================
+     Data
+     ========================================================= */
+  const STORAGE_KEY = 'gwent-deck-picker:v1';
+  const TAU = Math.PI * 2;
+
+  const DEFAULT_DECKS = [
+    { id: 'nr', name: 'Northern Realms',    color: '#2f5d9c', glyph: '♛', enabled: true,  custom: false },
+    { id: 'ng', name: 'Nilfgaardian Empire', color: '#3a3632', glyph: '☀', enabled: true,  custom: false },
+    { id: 'st', name: "Scoia'tael",          color: '#3f7a3a', glyph: '➶', enabled: true,  custom: false },
+    { id: 'mo', name: 'Monsters',            color: '#8f2b2b', glyph: '☠', enabled: true,  custom: false },
+    { id: 'sk', name: 'Skellige',            color: '#5b3d8a', glyph: '⚓', enabled: true,  custom: false },
+    { id: 'sy', name: 'Syndicate',           color: '#b86b1f', glyph: '◎', enabled: false, custom: false },
+  ];
+  const CUSTOM_PALETTE = ['#7a5c2e', '#2e7a76', '#7a2e6a', '#5c7a2e', '#2e4a7a', '#7a3e2e', '#4f6b7a', '#6b7a2e'];
+  const CUSTOM_GLYPHS = ['✦', '✧', '❖', '✪', '⚜', '☗', '♞', '⚔'];
+
+  const FLAVOR = {
+    nr: ['For Temeria! For the North!', 'Foltest’s banners rise once more.', 'Steel in hand, the Realms march.'],
+    ng: ['The Black Sun burns everything in its path.', 'Glory to the Empire. Glory to Emhyr.', 'Nilfgaard does not forgive. Nor forget.'],
+    st: ['Aen Seidhe strike from the shadows.', 'The forest remembers. So do the elves.', 'Bloede dh’oine — your end comes swiftly.'],
+    mo: ['Something stirs in the dark…', 'Hear that? That’s the sound of claws.', 'Nothing a silver sword can’t handle. Probably.'],
+    sk: ['Freya bless this voyage. Skellige!', 'The sea takes, and the sea gives back.', 'Drink deep — the longships sail at dawn.'],
+    sy: ['Coin talks louder than steel in Novigrad.', 'Every soul has a price. Yours too.', 'The Syndicate always collects.'],
+    _:  ['Destiny chooses, and destiny does not bargain.', 'Hmm. Interesting hand you’ve drawn.', 'Winds howling… time to play.', 'A fine deck. Try not to lose with it.', 'Evil is evil. Lesser, greater — pick a deck and play.'],
+  };
+
+  const defaultSettings = () => ({
+    decks: DEFAULT_DECKS.map(d => ({ ...d })),
+    players: ['Player 1', 'Player 2'],
+    shufflePlayers: false,
+    muted: false,
+  });
+
+  /* =========================================================
+     Utilities
+     ========================================================= */
+  const $ = (id) => document.getElementById(id);
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  const rand = () => {
+    if (window.crypto?.getRandomValues) {
+      const u = new Uint32Array(1); crypto.getRandomValues(u);
+      return u[0] / 4294967296;
+    }
+    return Math.random();
+  };
+  const randInt = (n) => Math.floor(rand() * n);
+  const pick = (arr) => arr[randInt(arr.length)];
+  const shuffle = (arr) => {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) { const j = randInt(i + 1); [a[i], a[j]] = [a[j], a[i]]; }
+    return a;
+  };
+  const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const uid = () => 'c' + Date.now().toString(36) + randInt(1e6).toString(36);
+
+  function loadSettings() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return defaultSettings();
+      const parsed = JSON.parse(raw);
+      const base = defaultSettings();
+      const decks = Array.isArray(parsed.decks) && parsed.decks.length
+        ? parsed.decks.filter(d => d && typeof d.name === 'string').map(d => ({
+            id: String(d.id || uid()), name: d.name.slice(0, 32), color: /^#[0-9a-f]{6}$/i.test(d.color) ? d.color : CUSTOM_PALETTE[0],
+            glyph: typeof d.glyph === 'string' && d.glyph ? d.glyph.slice(0, 2) : '✦', enabled: d.enabled !== false, custom: !!d.custom,
+          }))
+        : base.decks;
+      const players = Array.isArray(parsed.players) && parsed.players.length
+        ? parsed.players.map(p => String(p).slice(0, 24)) : base.players;
+      return { decks, players, shufflePlayers: !!parsed.shufflePlayers, muted: !!parsed.muted };
+    } catch { return defaultSettings(); }
+  }
+  function saveSettings() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(settings)); } catch { /* private mode, ignore */ }
+  }
+
+  let toastTimer = 0;
+  function toast(msg) {
+    const el = $('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+  }
+
+  /* =========================================================
+     Audio (synthesised, no assets)
+     ========================================================= */
+  const audio = {
+    ctx: null,
+    ensure() {
+      if (settings.muted) return null;
+      try {
+        if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+        return this.ctx;
+      } catch { return null; }
+    },
+    tick() {
+      const ctx = this.ensure(); if (!ctx) return;
+      const t = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(1500, t);
+      osc.frequency.exponentialRampToValueAtTime(500, t + 0.035);
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(0.12, t + 0.003);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(t); osc.stop(t + 0.07);
+    },
+    fanfare() {
+      const ctx = this.ensure(); if (!ctx) return;
+      const t0 = ctx.currentTime;
+      // low gong
+      const low = ctx.createOscillator(), lg = ctx.createGain(), lp = ctx.createBiquadFilter();
+      low.type = 'sawtooth'; low.frequency.value = 73.4; lp.type = 'lowpass'; lp.frequency.value = 400;
+      lg.gain.setValueAtTime(0.0001, t0);
+      lg.gain.exponentialRampToValueAtTime(0.18, t0 + 0.02);
+      lg.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.6);
+      low.connect(lp).connect(lg).connect(ctx.destination); low.start(t0); low.stop(t0 + 1.7);
+      // ascending chord
+      [293.66, 369.99, 440, 587.33].forEach((f, i) => {
+        const t = t0 + 0.08 + i * 0.13;
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.type = i === 3 ? 'triangle' : 'sine'; o.frequency.value = f;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.09, t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 1.2);
+        o.connect(g).connect(ctx.destination); o.start(t); o.stop(t + 1.3);
+      });
+    },
+  };
+
+  /* =========================================================
+     State
+     ========================================================= */
+  let settings = loadSettings();
+  let game = null;            // { players, remaining: deckIds[], assignments: [{player, deckId}], turn }
+  let rot = -Math.PI / 2 / 3; // visual rotation of the wheel (radians)
+  let spinning = false;
+  let highlightIdx = -1;
+  let highlightPulse = 0;
+  let pendingResult = null;   // { player, deck }
+
+  const deckById = (id) => settings.decks.find(d => d.id === id);
+  const enabledDecks = () => settings.decks.filter(d => d.enabled);
+  const remainingDecks = () => (game ? game.remaining.map(deckById).filter(Boolean) : []);
+  const currentPlayer = () => (game && game.turn < game.players.length ? game.players[game.turn] : null);
+  const gameDone = () => !!game && (game.turn >= game.players.length || game.remaining.length === 0);
+
+  function newGame() {
+    const players = settings.shufflePlayers ? shuffle(settings.players) : settings.players.slice();
+    game = { players, remaining: enabledDecks().map(d => d.id), assignments: [], turn: 0 };
+    highlightIdx = -1; pendingResult = null;
+    hideOverlays();
+    renderAll();
+  }
+
+  /* =========================================================
+     Wheel rendering
+     ========================================================= */
+  const canvas = $('wheel');
+  const ctx = canvas.getContext('2d');
+  const wheelWrap = $('wheelWrap');
+  let size = 0;
+
+  function resizeCanvas() {
+    const rect = wheelWrap.getBoundingClientRect();
+    size = Math.max(120, Math.round(rect.width));
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    canvas.width = Math.round(size * dpr);
+    canvas.height = Math.round(size * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    drawWheel();
+  }
+
+  function hexToRgb(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+  const shade = (hex, f) => {
+    const [r, g, b] = hexToRgb(hex);
+    const m = (c) => clamp(Math.round(f >= 0 ? c + (255 - c) * f : c * (1 + f)), 0, 255);
+    return `rgb(${m(r)},${m(g)},${m(b)})`;
+  };
+
+  function fitText(text, maxWidth) {
+    if (ctx.measureText(text).width <= maxWidth) return text;
+    let s = text;
+    while (s.length > 1 && ctx.measureText(s + '…').width > maxWidth) s = s.slice(0, -1);
+    return s.trimEnd() + '…';
+  }
+
+  // Finds a font size / line split so the label fits inside its slice.
+  function layoutLabel(name, maxW, maxH, baseFs, fontFamily) {
+    const font = (fs) => `700 ${fs}px ${fontFamily}`;
+    const width = (s) => ctx.measureText(s).width;
+    const singleMin = Math.max(12, Math.round(baseFs * 0.8));
+    for (let fs = baseFs; fs >= singleMin; fs -= 1) {
+      ctx.font = font(fs);
+      if (width(name) <= maxW) return { lines: [name], fs };
+    }
+    const words = name.split(/\s+/).filter(Boolean);
+    if (words.length > 1) {
+      let best = null;
+      for (let k = 1; k < words.length; k++) {
+        const a = words.slice(0, k).join(' '), b = words.slice(k).join(' ');
+        const l = Math.max(a.length, b.length);
+        if (!best || l < best.l) best = { a, b, l };
+      }
+      for (let fs = baseFs; fs >= 10; fs -= 1) {
+        ctx.font = font(fs);
+        if (fs * 2.3 <= maxH && Math.max(width(best.a), width(best.b)) <= maxW) return { lines: [best.a, best.b], fs };
+      }
+    }
+    for (let fs = singleMin - 1; fs >= 10; fs -= 1) {
+      ctx.font = font(fs);
+      if (width(name) <= maxW) return { lines: [name], fs };
+    }
+    const fs = Math.max(10, Math.min(12, baseFs));
+    ctx.font = font(fs);
+    return { lines: [fitText(name, maxW)], fs };
+  }
+
+  function drawWheel() {
+    if (!size) return;
+    const decks = remainingDecks();
+    const n = decks.length;
+    const cx = size / 2, cy = size / 2;
+    const R = size / 2 - 4;         // outer radius
+    const rimW = Math.max(8, size * 0.028);
+    const Ri = R - rimW;            // segment radius
+    ctx.clearRect(0, 0, size, size);
+
+    // Base disc
+    ctx.save();
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, TAU);
+    ctx.fillStyle = '#0d0a06'; ctx.fill();
+    ctx.restore();
+
+    if (n === 0) {
+      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, Ri);
+      g.addColorStop(0, '#2a2012'); g.addColorStop(1, '#120d07');
+      ctx.beginPath(); ctx.arc(cx, cy, Ri, 0, TAU); ctx.fillStyle = g; ctx.fill();
+      ctx.fillStyle = 'rgba(234,217,180,0.55)';
+      ctx.font = `italic ${Math.max(13, size * 0.035)}px ${getComputedStyle(document.body).getPropertyValue('--font-body')}`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(game && gameDone() ? 'No decks remain' : 'No decks selected', cx, cy + Ri * 0.55);
+    } else {
+      const arc = TAU / n;
+      const fontDisplay = getComputedStyle(document.body).getPropertyValue('--font-display');
+      const arcLenAtLabel = arc * Ri * 0.62;
+      const fontSize = clamp(Math.min(size * 0.04, arcLenAtLabel * 0.42), 9, 24);
+      const glyphSize = clamp(fontSize * 1.25, 11, 28);
+
+      for (let i = 0; i < n; i++) {
+        const d = decks[i];
+        const start = -Math.PI / 2 + rot + i * arc;
+        const end = start + arc;
+        const isHi = i === highlightIdx;
+
+        // Segment fill
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.arc(cx, cy, Ri, start, end);
+        ctx.closePath();
+        const g = ctx.createRadialGradient(cx, cy, Ri * 0.15, cx, cy, Ri);
+        g.addColorStop(0, shade(d.color, -0.45));
+        g.addColorStop(0.55, d.color);
+        g.addColorStop(1, shade(d.color, -0.25));
+        ctx.fillStyle = g; ctx.fill();
+
+        // Subtle inner vignette per segment
+        ctx.fillStyle = 'rgba(0,0,0,0.12)';
+        ctx.fill();
+        if (isHi) {
+          const a = 0.18 + 0.22 * (0.5 + 0.5 * Math.sin(highlightPulse));
+          ctx.fillStyle = `rgba(255, 230, 160, ${a})`;
+          ctx.fill();
+        }
+
+        // Divider
+        if (n > 1) {
+          ctx.beginPath();
+          ctx.moveTo(cx, cy);
+          ctx.lineTo(cx + Math.cos(start) * Ri, cy + Math.sin(start) * Ri);
+          ctx.strokeStyle = 'rgba(200,160,79,0.75)'; ctx.lineWidth = Math.max(1, size * 0.004); ctx.stroke();
+        }
+
+        // Label
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(start + arc / 2);
+        ctx.textBaseline = 'middle';
+        ctx.shadowColor = 'rgba(0,0,0,0.85)'; ctx.shadowBlur = 4; ctx.shadowOffsetY = 1;
+        // glyph near rim
+        ctx.font = `${glyphSize}px "Apple Symbols", "Segoe UI Symbol", "Noto Sans Symbols 2", "Noto Sans Symbols", serif`;
+        ctx.textAlign = 'center';
+        ctx.fillStyle = 'rgba(248,236,201,0.95)';
+        const glyphX = Ri - glyphSize * 0.95;
+        ctx.fillText(d.glyph + '\uFE0E', glyphX, 0);
+        // name (right-aligned so it ends just before the glyph, starts outside the hub)
+        const labelRight = glyphX - glyphSize * 0.8;
+        const maxW = Math.max(20, labelRight - Ri * 0.31);
+        const { lines, fs } = layoutLabel(d.name, maxW, arcLenAtLabel * 0.85, fontSize, fontDisplay);
+        ctx.textAlign = 'right';
+        ctx.fillStyle = '#f3e6c3';
+        const lineGap = fs * 1.18;
+        lines.forEach((line, li) => {
+          const y = (li - (lines.length - 1) / 2) * lineGap;
+          ctx.fillText(line, labelRight, y);
+        });
+        ctx.restore();
+      }
+    }
+
+    // Rim
+    ctx.save();
+    const rimGrad = ctx.createLinearGradient(0, 0, size, size);
+    rimGrad.addColorStop(0, '#8a6b2e'); rimGrad.addColorStop(0.3, '#ecd28a');
+    rimGrad.addColorStop(0.55, '#c8a04f'); rimGrad.addColorStop(0.8, '#6e5420'); rimGrad.addColorStop(1, '#d9b765');
+    ctx.beginPath(); ctx.arc(cx, cy, R - rimW / 2, 0, TAU);
+    ctx.lineWidth = rimW; ctx.strokeStyle = rimGrad; ctx.stroke();
+    // rim edges
+    ctx.lineWidth = 1.2; ctx.strokeStyle = 'rgba(0,0,0,0.75)';
+    ctx.beginPath(); ctx.arc(cx, cy, R - 0.6, 0, TAU); ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, cy, Ri + 0.6, 0, TAU); ctx.stroke();
+    // studs
+    const studs = Math.max(12, n * 4);
+    const studR = Math.max(1.6, rimW * 0.2);
+    for (let j = 0; j < studs; j++) {
+      const a = rot + j * (TAU / studs);
+      const x = cx + Math.cos(a) * (R - rimW / 2), y = cy + Math.sin(a) * (R - rimW / 2);
+      ctx.beginPath(); ctx.arc(x, y, studR, 0, TAU);
+      ctx.fillStyle = '#2a1e0a'; ctx.fill();
+      ctx.beginPath(); ctx.arc(x - studR * 0.25, y - studR * 0.25, studR * 0.55, 0, TAU);
+      ctx.fillStyle = '#f3dc9a'; ctx.fill();
+    }
+    ctx.restore();
+
+    // Inner ring behind hub
+    ctx.save();
+    ctx.beginPath(); ctx.arc(cx, cy, size * 0.135, 0, TAU);
+    ctx.lineWidth = Math.max(2, size * 0.008);
+    ctx.strokeStyle = 'rgba(200,160,79,0.55)'; ctx.stroke();
+    ctx.restore();
+
+    // Soft sheen
+    ctx.save();
+    const sheen = ctx.createLinearGradient(0, 0, 0, size);
+    sheen.addColorStop(0, 'rgba(255,255,255,0.09)'); sheen.addColorStop(0.5, 'rgba(255,255,255,0)'); sheen.addColorStop(1, 'rgba(0,0,0,0.18)');
+    ctx.beginPath(); ctx.arc(cx, cy, Ri, 0, TAU); ctx.fillStyle = sheen; ctx.fill();
+    ctx.restore();
+  }
+
+  /* =========================================================
+     Spinning
+     ========================================================= */
+  const pointer = $('pointer');
+  const easeOut = (t) => 1 - Math.pow(1 - t, 4);
+
+  function indexUnderPointer(n) {
+    const arc = TAU / n;
+    const a = ((-rot) % TAU + TAU) % TAU;
+    return Math.floor(a / arc) % n;
+  }
+
+  function nudgePointer() {
+    pointer.classList.remove('nudge');
+    void pointer.offsetWidth;
+    pointer.classList.add('nudge');
+  }
+
+  function spin() {
+    if (spinning || !game || gameDone()) return;
+    const decks = remainingDecks();
+    const n = decks.length;
+    if (n === 0) return;
+
+    audio.ensure(); // unlock audio on user gesture
+    spinning = true;
+    highlightIdx = -1;
+    wheelWrap.classList.add('spinning');
+    setControlsEnabled(false);
+
+    const arc = TAU / n;
+    const winner = randInt(n);
+    const offset = arc * (0.5 + (rand() * 0.8 - 0.4));       // land somewhere inside the segment, not on the edge
+    const target = winner * arc + offset;                     // angle (from top, clockwise) that must sit under the pointer
+    const turns = reduceMotion.matches ? 1 : 5 + rand() * 3;
+    const minFinal = rot + turns * TAU;
+    const k = Math.ceil((minFinal + target) / TAU);
+    const finalRot = k * TAU - target;
+    const startRot = rot;
+    const delta = finalRot - startRot;
+    const duration = reduceMotion.matches ? 900 : 4800 + rand() * 1600;
+    const t0 = performance.now();
+    let lastIdx = indexUnderPointer(n);
+
+    function frame(now) {
+      const p = clamp((now - t0) / duration, 0, 1);
+      rot = startRot + delta * easeOut(p);
+      const idx = indexUnderPointer(n);
+      if (idx !== lastIdx) { lastIdx = idx; audio.tick(); nudgePointer(); }
+      drawWheel();
+      if (p < 1) { requestAnimationFrame(frame); return; }
+      rot = finalRot % TAU;
+      finishSpin(winner);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function finishSpin(winnerIdx) {
+    spinning = false;
+    wheelWrap.classList.remove('spinning');
+    const deck = remainingDecks()[winnerIdx];
+    const player = currentPlayer();
+    highlightIdx = winnerIdx;
+    audio.fanfare();
+    if (navigator.vibrate) { try { navigator.vibrate([30, 40, 60]); } catch { /* ignore */ } }
+
+    // Pulse the winning slice for a moment, then reveal.
+    const pulseStart = performance.now();
+    const pulseDur = reduceMotion.matches ? 200 : 1100;
+    (function pulse(now) {
+      highlightPulse = (now - pulseStart) / 90;
+      drawWheel();
+      if (now - pulseStart < pulseDur) { requestAnimationFrame(pulse); return; }
+      pendingResult = { player, deck };
+      showResult(player, deck);
+    })(pulseStart);
+  }
+
+  function commitResult() {
+    if (!pendingResult) return;
+    const { player, deck } = pendingResult;
+    pendingResult = null;
+    game.assignments.push({ player, deckId: deck.id });
+    game.remaining = game.remaining.filter(id => id !== deck.id);
+    game.turn += 1;
+    highlightIdx = -1;
+    $('resultOverlay').hidden = true;
+    renderAll();
+    if (gameDone()) setTimeout(showFinal, 350);
+  }
+
+  /* =========================================================
+     Rendering: banner, chips, ledger, overlays
+     ========================================================= */
+  function setControlsEnabled(on) {
+    const can = on && !!game && !gameDone() && game.remaining.length > 0;
+    $('btnSpin').disabled = !can;
+    $('btnHub').disabled = !can;
+    $('btnReset').disabled = !on;
+    $('btnSettings').disabled = !on;
+  }
+
+  function renderBanner() {
+    const el = $('turnBanner');
+    if (!game) { el.innerHTML = ''; return; }
+    const total = game.players.length;
+    const decksN = enabledDecks().length;
+    if (decksN === 0) {
+      el.innerHTML = `<span class="warn">No decks selected</span><span class="meta">Open the settings to choose which decks are in play.</span>`;
+      return;
+    }
+    if (gameDone()) {
+      el.innerHTML = `<strong>The decks are dealt</strong><span class="meta">Shuffle up and may the best hand win.</span>`;
+      return;
+    }
+    const short = decksN < total ? `<span class="meta warn">Only ${decksN} deck${decksN === 1 ? '' : 's'} for ${total} players — the last ${total - decksN} will go without.</span>` : '';
+    el.innerHTML = `Spinning for <strong>${escapeHtml(currentPlayer())}</strong><span class="meta">Turn ${game.turn + 1} of ${Math.min(total, decksN)}</span>${short}`;
+  }
+
+  function renderChips() {
+    const ul = $('remainingChips');
+    if (!game) { ul.innerHTML = ''; return; }
+    const takenIds = new Set(game.assignments.map(a => a.deckId));
+    ul.innerHTML = enabledDecks().map(d =>
+      `<li class="chip${takenIds.has(d.id) ? ' taken' : ''}" style="--c:${d.color}"><span class="dot"></span>${escapeHtml(d.name)}</li>`
+    ).join('');
+  }
+
+  function renderLedger() {
+    const ol = $('ledgerList');
+    const empty = $('ledgerEmpty');
+    if (!game) { ol.innerHTML = ''; empty.hidden = false; return; }
+    const rows = game.players.map((p, i) => {
+      const a = game.assignments[i];
+      if (a) {
+        const d = deckById(a.deckId);
+        return `<li style="--c:${d.color}"><span class="seal-sm">${escapeHtml(d.glyph)}&#xFE0E;</span><span><span class="who">${escapeHtml(p)}</span><br><span class="what">${escapeHtml(d.name)}</span></span></li>`;
+      }
+      return `<li class="pending"><span class="seal-sm">${i + 1}</span><span><span class="who">${escapeHtml(p)}</span><br><span class="what">${i === game.turn ? 'Awaiting the wheel…' : 'Waiting'}</span></span></li>`;
+    });
+    ol.innerHTML = rows.join('');
+    empty.hidden = true;
+  }
+
+  function renderAll() {
+    renderBanner();
+    renderChips();
+    renderLedger();
+    setControlsEnabled(true);
+    drawWheel();
+  }
+
+  function showResult(player, deck) {
+    const ov = $('resultOverlay');
+    $('resultSeal').style.setProperty('--c', deck.color);
+    $('resultSeal').textContent = deck.glyph + '\uFE0E';
+    $('resultEyebrow').innerHTML = `<strong>${escapeHtml(player)}</strong> shall wield`;
+    $('resultTitle').textContent = deck.name;
+    $('resultFlavor').textContent = '“' + pick(FLAVOR[deck.id] || FLAVOR._) + '”';
+    ov.hidden = false;
+    $('btnContinue').focus({ preventScroll: true });
+  }
+
+  function showFinal() {
+    const ul = $('finalSummary');
+    ul.innerHTML = game.assignments.map(a => {
+      const d = deckById(a.deckId);
+      return `<li style="--c:${d.color}"><span class="dot"></span><span class="who">${escapeHtml(a.player)}</span><span class="what">${escapeHtml(d.name)}</span></li>`;
+    }).join('') + game.players.slice(game.assignments.length).map(p =>
+      `<li style="--c:#555"><span class="dot"></span><span class="who">${escapeHtml(p)}</span><span class="what" style="opacity:.6;font-style:italic">no deck left</span></li>`
+    ).join('');
+    $('finalOverlay').hidden = false;
+    $('btnPlayAgain').focus({ preventScroll: true });
+  }
+
+  function hideOverlays() {
+    $('resultOverlay').hidden = true;
+    $('finalOverlay').hidden = true;
+  }
+
+  /* =========================================================
+     Settings dialog
+     ========================================================= */
+  const dlg = $('settingsDialog');
+  let draft = null;
+
+  function openSettings() {
+    draft = {
+      decks: settings.decks.map(d => ({ ...d })),
+      players: settings.players.slice(),
+      shufflePlayers: settings.shufflePlayers,
+    };
+    renderDraft();
+    if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
+  }
+  function closeSettings() { if (dlg.open) dlg.close(); else dlg.removeAttribute('open'); }
+
+  function renderDraft() {
+    const deckList = $('deckList');
+    deckList.innerHTML = draft.decks.map((d, i) => `
+      <li class="${d.enabled ? '' : 'off'}" data-i="${i}">
+        <span class="swatch" style="--c:${d.color}">${escapeHtml(d.glyph)}&#xFE0E;</span>
+        <input class="text-input" data-field="deck-name" data-i="${i}" type="text" value="${escapeHtml(d.name)}" maxlength="32" aria-label="Deck name">
+        <label class="toggle" title="${d.enabled ? 'In play' : 'Benched'}">
+          <input type="checkbox" data-field="deck-enabled" data-i="${i}" ${d.enabled ? 'checked' : ''} aria-label="Include ${escapeHtml(d.name)}">
+          <span class="track"></span><span class="knob"></span>
+        </label>
+        <button type="button" class="mini-btn ${d.custom ? '' : 'ghost-slot'}" data-action="remove-deck" data-i="${i}" aria-label="Remove ${escapeHtml(d.name)}" ${d.custom ? '' : 'tabindex="-1"'}>✕</button>
+      </li>`).join('');
+
+    const playerList = $('playerList');
+    playerList.innerHTML = draft.players.map((p, i) => `
+      <li data-i="${i}">
+        <span class="idx">${i + 1}.</span>
+        <input class="text-input" data-field="player-name" data-i="${i}" type="text" value="${escapeHtml(p)}" maxlength="24" placeholder="Player ${i + 1}" aria-label="Player ${i + 1} name">
+        <button type="button" class="mini-btn" data-action="remove-player" data-i="${i}" aria-label="Remove player ${i + 1}" ${draft.players.length <= 1 ? 'disabled' : ''}>✕</button>
+      </li>`).join('');
+
+    $('optShuffle').checked = draft.shufflePlayers;
+    const on = draft.decks.filter(d => d.enabled).length;
+    $('deckCount').textContent = `${on} in play`;
+    $('playerCount').textContent = `${draft.players.length} at the table`;
+    const hint = $('settingsHint');
+    if (on === 0) { hint.textContent = 'At least one deck must be in play.'; hint.className = 'hint error'; }
+    else if (on < draft.players.length) { hint.textContent = `Fewer decks than players — the last ${draft.players.length - on} player${draft.players.length - on === 1 ? '' : 's'} won't receive a deck.`; hint.className = 'hint'; }
+    else { hint.textContent = 'Saving starts a fresh game with these settings.'; hint.className = 'hint'; }
+  }
+
+  function addDeck() {
+    const input = $('newDeckName');
+    const name = input.value.trim().slice(0, 32);
+    if (!name) { input.focus(); return; }
+    if (draft.decks.some(d => d.name.toLowerCase() === name.toLowerCase())) { toast('That deck is already on the table.'); return; }
+    const customCount = draft.decks.filter(d => d.custom).length;
+    draft.decks.push({
+      id: uid(), name, enabled: true, custom: true,
+      color: CUSTOM_PALETTE[customCount % CUSTOM_PALETTE.length],
+      glyph: CUSTOM_GLYPHS[customCount % CUSTOM_GLYPHS.length],
+    });
+    input.value = '';
+    renderDraft();
+    input.focus();
+  }
+
+  function saveFromDraft() {
+    draft.players = draft.players.map((p, i) => (p.trim() || `Player ${i + 1}`).slice(0, 24));
+    draft.decks = draft.decks.map((d, i) => ({ ...d, name: (d.name.trim() || `Deck ${i + 1}`).slice(0, 32) }));
+    if (!draft.decks.some(d => d.enabled)) { renderDraft(); toast('Choose at least one deck.'); return; }
+    settings = { ...settings, decks: draft.decks, players: draft.players, shufflePlayers: draft.shufflePlayers };
+    saveSettings();
+    closeSettings();
+    newGame();
+    toast('The table is set. Spin away.');
+  }
+
+  // Dialog events
+  $('btnSettings').addEventListener('click', openSettings);
+  $('btnCloseSettings').addEventListener('click', closeSettings);
+  $('btnAddDeck').addEventListener('click', addDeck);
+  $('newDeckName').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addDeck(); } });
+  $('btnAddPlayer').addEventListener('click', () => {
+    if (draft.players.length >= 12) { toast('Twelve is plenty for one table.'); return; }
+    draft.players.push(`Player ${draft.players.length + 1}`);
+    renderDraft();
+    const inputs = $('playerList').querySelectorAll('input[data-field="player-name"]');
+    const last = inputs[inputs.length - 1]; if (last) { last.focus(); last.select(); }
+  });
+  $('optShuffle').addEventListener('change', (e) => { draft.shufflePlayers = e.target.checked; });
+  $('btnDefaults').addEventListener('click', () => {
+    const d = defaultSettings();
+    draft = { decks: d.decks, players: d.players, shufflePlayers: d.shufflePlayers };
+    renderDraft();
+  });
+  $('btnSaveSettings').addEventListener('click', saveFromDraft);
+  $('settingsForm').addEventListener('submit', (e) => { e.preventDefault(); saveFromDraft(); });
+  $('settingsForm').addEventListener('input', (e) => {
+    const t = e.target; const i = Number(t.dataset.i);
+    if (t.dataset.field === 'deck-name') draft.decks[i].name = t.value;
+    if (t.dataset.field === 'player-name') draft.players[i] = t.value;
+  });
+  $('settingsForm').addEventListener('change', (e) => {
+    const t = e.target; const i = Number(t.dataset.i);
+    if (t.dataset.field === 'deck-enabled') { draft.decks[i].enabled = t.checked; renderDraft(); }
+  });
+  $('settingsForm').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-action]'); if (!btn) return;
+    const i = Number(btn.dataset.i);
+    if (btn.dataset.action === 'remove-deck') { draft.decks.splice(i, 1); renderDraft(); }
+    if (btn.dataset.action === 'remove-player' && draft.players.length > 1) { draft.players.splice(i, 1); renderDraft(); }
+  });
+  dlg.addEventListener('click', (e) => { if (e.target === dlg) closeSettings(); }); // click on backdrop
+
+  /* =========================================================
+     Main events
+     ========================================================= */
+  $('btnSpin').addEventListener('click', spin);
+  $('btnHub').addEventListener('click', spin);
+  $('btnReset').addEventListener('click', () => {
+    if (spinning) return;
+    newGame();
+    toast('A fresh start. The wheel awaits.');
+  });
+  $('btnContinue').addEventListener('click', commitResult);
+  $('resultOverlay').addEventListener('click', (e) => { if (e.target === e.currentTarget) commitResult(); });
+  $('btnPlayAgain').addEventListener('click', newGame);
+  $('btnChangeSetup').addEventListener('click', () => { $('finalOverlay').hidden = true; openSettings(); });
+
+  const soundBtn = $('btnSound');
+  function renderSound() { soundBtn.setAttribute('aria-pressed', settings.muted ? 'false' : 'true'); }
+  soundBtn.addEventListener('click', () => {
+    settings.muted = !settings.muted;
+    saveSettings(); renderSound();
+    if (!settings.muted) audio.tick();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    const tag = (e.target.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || dlg.open) return;
+    if (e.key === 'Escape') {
+      if (!$('resultOverlay').hidden) { e.preventDefault(); commitResult(); }
+      return;
+    }
+    if (e.key === ' ' || e.key === 'Enter') {
+      if (!$('resultOverlay').hidden) { e.preventDefault(); commitResult(); return; }
+      if (!$('finalOverlay').hidden) return;
+      if (tag === 'button') return; // let the button handle it
+      e.preventDefault(); spin();
+    }
+  });
+
+  // Resize handling
+  if ('ResizeObserver' in window) new ResizeObserver(resizeCanvas).observe(wheelWrap);
+  else window.addEventListener('resize', resizeCanvas);
+  window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 80));
+
+  // Redraw once web fonts arrive so labels use Cinzel
+  if (document.fonts?.load) {
+    Promise.all([document.fonts.load('700 20px Cinzel'), document.fonts.load('italic 16px "IM Fell English"')])
+      .catch(() => {})
+      .then(() => document.fonts.ready)
+      .then(drawWheel);
+  }
+
+  /* =========================================================
+     Embers
+     ========================================================= */
+  (function makeEmbers() {
+    if (reduceMotion.matches) return;
+    const host = $('embers');
+    const count = Math.min(26, Math.max(12, Math.round(window.innerWidth / 55)));
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i < count; i++) {
+      const e = document.createElement('span');
+      e.className = 'ember';
+      const s = 2 + Math.random() * 4;
+      e.style.left = `${Math.random() * 100}%`;
+      e.style.width = e.style.height = `${s}px`;
+      e.style.setProperty('--dx', `${(Math.random() * 120 - 60).toFixed(0)}px`);
+      e.style.animationDuration = `${9 + Math.random() * 10}s`;
+      e.style.animationDelay = `${-Math.random() * 18}s`;
+      frag.appendChild(e);
+    }
+    host.appendChild(frag);
+  })();
+
+  /* =========================================================
+     Boot
+     ========================================================= */
+  renderSound();
+  newGame();
+  resizeCanvas();
+})();
+</script>
+</body>
+</html>
