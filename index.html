@@ -4,6 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1a1008">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Gwent Squire">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
 <meta name="description" content="A medieval, Witcher-themed archery target that randomly assigns Gwent decks to players.">
 <title>Wheel of Destiny — Gwent Deck Picker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -203,7 +208,7 @@
   canvas#wheel {
     position: relative; z-index: 1;
     width: 100%; height: 100%; display: block; border-radius: 50%;
-    filter: drop-shadow(0 20px 30px rgba(0,0,0,.7));
+    box-shadow: 0 18px 28px rgba(0,0,0,.55);
     touch-action: manipulation;
   }
 
@@ -214,6 +219,7 @@
     pointer-events: none; visibility: hidden;
     will-change: transform;
     backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
   }
   .arrow.show { visibility: visible; }
   .arrow-aim {
@@ -222,9 +228,34 @@
     transform-origin: 50% 100%;
     will-change: transform;
     backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
   }
   .arrow-aim svg, .arrow-aim img {
     width: 100%; height: 100%; display: block; pointer-events: none;
+  }
+  /* Lengths and the angle are set per shot. Registered so the 200ms flight
+     interpolates on iOS instead of snapping. */
+  @property --from-x { syntax: "<length>"; inherits: false; initial-value: 0px; }
+  @property --from-y { syntax: "<length>"; inherits: false; initial-value: 0px; }
+  @property --to-x { syntax: "<length>"; inherits: false; initial-value: 0px; }
+  @property --to-y { syntax: "<length>"; inherits: false; initial-value: 0px; }
+  @property --shot-deg { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+  @property --from-scale { syntax: "<number>"; inherits: false; initial-value: 1; }
+  @property --to-scale { syntax: "<number>"; inherits: false; initial-value: 1; }
+  /* 200ms linear flight. Translate and aim are separate so the head stays forward. */
+  @keyframes arrow-flight {
+    from { transform: translate3d(var(--from-x), var(--from-y), 0); }
+    to { transform: translate3d(var(--to-x), var(--to-y), 0); }
+  }
+  @keyframes arrow-aim-flight {
+    from { transform: rotate(var(--shot-deg)) scale(var(--from-scale)); }
+    to { transform: rotate(var(--shot-deg)) scale(var(--to-scale)); }
+  }
+  /* 70ms bite. */
+  @keyframes arrow-bite {
+    0% { transform: rotate(var(--shot-deg)) scale(1) translateY(0px); }
+    40% { transform: rotate(calc(var(--shot-deg) + 0.7deg)) scale(1) translateY(2.2px); }
+    100% { transform: rotate(var(--shot-deg)) scale(1) translateY(0.4px); }
   }
 
   /* Bullseye hub */
@@ -243,7 +274,7 @@
     font-family: var(--font-display); letter-spacing: .06em;
     font-size: clamp(.62rem, 1.6vw, .98rem);
     text-shadow: 0 1px 0 rgba(255,240,200,.55);
-    transition: transform .18s ease, filter .25s ease;
+    transition: transform .18s ease;
   }
   .hub::before {
     content: ""; position: absolute; inset: 0; border-radius: 50%;
@@ -336,8 +367,7 @@
     position: fixed; inset: 0; z-index: 50;
     display: grid; place-items: center; padding: 1.25rem;
     background: radial-gradient(ellipse at center, rgba(12,7,3,.6) 0%, rgba(6,3,1,.9) 100%);
-    backdrop-filter: blur(4px);
-    animation: fade .35s ease both;
+    animation: fade .2s ease both;
     overflow-y: auto;
   }
   .overlay[hidden] { display: none; }
@@ -345,7 +375,7 @@
   .card {
     width: min(100%, 440px); text-align: center;
     padding: 5rem 1.8rem 1.9rem; margin-top: 52px;
-    animation: cardIn .55s cubic-bezier(.2,.9,.25,1.2) both;
+    animation: cardIn .28s cubic-bezier(.2,.9,.25,1.15) both;
   }
   .card.final { padding-top: 2.1rem; margin-top: 0; }
   @keyframes cardIn { from { opacity: 0; transform: translateY(20px) rotate(-1.5deg) scale(.95); } to { opacity: 1; transform: none; } }
@@ -357,7 +387,7 @@
   }
   .seal-wrap::before { left: 24px; transform: rotate(14deg); }
   .seal-wrap::after { right: 24px; transform: rotate(-14deg); }
-  .seal-lg { width: 108px; height: 108px; animation: stamp .6s cubic-bezier(.3,1.4,.5,1) .1s both; }
+  .seal-lg { width: 108px; height: 108px; animation: stamp .32s cubic-bezier(.3,1.4,.5,1) both; }
   .seal-lg svg { filter: drop-shadow(0 2px 0 rgba(0,0,0,.45)) drop-shadow(0 -1px 0 rgba(255,255,255,.15)); }
   @keyframes stamp {
     0% { transform: scale(1.8) rotate(-14deg); opacity: 0; }
@@ -384,21 +414,23 @@
   .opener-line { margin: -.4rem 0 1rem; font-size: 1.08rem; color: var(--ink); }
   .opener-line strong { font-family: var(--font-sc); font-weight: normal; color: var(--crimson-deep); }
 
-  /* ---------- Coin ---------- */
-  #coinOverlay { z-index: 60; }
+  /* ---------- Coin ----------
+     The dialog must not fade or transform while the coin spins: an
+     ancestor opacity or transform flattens the coin on iOS and the
+     flip never paints. The tilt sits on the scene. The spin itself
+     is only scaleX on #coin, which has no inline transform. */
+  #coinOverlay { z-index: 60; animation: none; }
+  #coinOverlay .card { animation: none; }
   .coin-scene {
     width: 148px; height: 148px; margin: .85rem auto .35rem;
-    perspective: 900px; position: relative;
+    position: relative;
+    transform: rotateX(18deg);
   }
   .coin {
     width: 100%; height: 100%; position: relative;
-    transform-style: preserve-3d;
-    transform: rotateX(18deg);
-    will-change: transform;
   }
   .coin-face {
     position: absolute; inset: 0; border-radius: 50%;
-    backface-visibility: hidden; -webkit-backface-visibility: hidden;
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .05rem;
     box-shadow: inset 0 0 0 3px rgba(255,236,190,.55), inset 0 0 0 8px rgba(70,42,12,.55), inset 0 0 22px rgba(0,0,0,.35);
   }
@@ -408,17 +440,18 @@
   }
   .flavor strong { font-family: var(--font-sc); font-weight: normal; color: var(--crimson-deep); }
   .coin-face.castle {
-    transform: translateZ(1px);
     background:
       radial-gradient(circle at 32% 28%, #fff1c4, #e4c074 38%, #a67c32 72%, #6d4e16);
     color: #3a2710;
   }
   .coin-face.fire {
-    transform: rotateY(180deg) translateZ(1px);
+    opacity: 0;
     background:
       radial-gradient(circle at 32% 28%, #ffd7a0, #e06a28 36%, #9c2c14 70%, #4c100c);
     color: #ffe8c2;
   }
+  .coin.show-fire .coin-face.castle { opacity: 0; }
+  .coin.show-fire .coin-face.fire { opacity: 1; }
   .coin-face.fire::after { border-color: rgba(255,220,170,.35); }
   .coin-glyph { width: 52px; height: 52px; position: relative; z-index: 1; }
   .coin-glyph svg { width: 100%; height: 100%; display: block; }
@@ -541,6 +574,22 @@
     .embers { display: none; }
     .card, .overlay, .ledger li, .seal-lg { animation-duration: .01s; }
   }
+  /* 420ms ease-out, three turns. Times sit on an ease-out curve.
+     The coin pinches to an edge and opens on the other face, so both
+     castle and fire are shown. Keyframes live in this sheet, like the
+     arrow, and #coin has no inline transform while they run. */
+  @keyframes coin-spin-s0-d1080{from{transform:scaleX(1.0000)}2.105%{transform:scaleX(0.7071)}4.257%{transform:scaleX(0.0000)}4.297%{transform:scaleX(0.0000)}6.459%{transform:scaleX(0.7071)}8.713%{transform:scaleX(1.0000)}11.024%{transform:scaleX(0.7071)}13.397%{transform:scaleX(0.0000)}13.437%{transform:scaleX(0.0000)}15.837%{transform:scaleX(0.7071)}18.350%{transform:scaleX(1.0000)}20.943%{transform:scaleX(0.7071)}23.624%{transform:scaleX(0.0000)}23.664%{transform:scaleX(0.0000)}26.402%{transform:scaleX(0.7071)}29.289%{transform:scaleX(1.0000)}32.300%{transform:scaleX(0.7071)}35.450%{transform:scaleX(0.0000)}35.490%{transform:scaleX(0.0000)}38.763%{transform:scaleX(0.7071)}42.265%{transform:scaleX(1.0000)}45.994%{transform:scaleX(0.7071)}50.000%{transform:scaleX(0.0000)}50.040%{transform:scaleX(0.0000)}54.356%{transform:scaleX(0.7071)}59.175%{transform:scaleX(1.0000)}64.645%{transform:scaleX(0.7071)}71.132%{transform:scaleX(0.0000)}71.172%{transform:scaleX(0.0000)}79.588%{transform:scaleX(0.7071)}to{transform:scaleX(1.0000)}}
+  @keyframes coin-spin-s0-d1080-castle{from{opacity:1}2.105%{opacity:1}4.257%{opacity:1}4.297%{opacity:0}6.459%{opacity:0}8.713%{opacity:0}11.024%{opacity:0}13.397%{opacity:0}13.437%{opacity:1}15.837%{opacity:1}18.350%{opacity:1}20.943%{opacity:1}23.624%{opacity:1}23.664%{opacity:0}26.402%{opacity:0}29.289%{opacity:0}32.300%{opacity:0}35.450%{opacity:0}35.490%{opacity:1}38.763%{opacity:1}42.265%{opacity:1}45.994%{opacity:1}50.000%{opacity:1}50.040%{opacity:0}54.356%{opacity:0}59.175%{opacity:0}64.645%{opacity:0}71.132%{opacity:0}71.172%{opacity:1}79.588%{opacity:1}to{opacity:1}}
+  @keyframes coin-spin-s0-d1080-fire{from{opacity:0}2.105%{opacity:0}4.257%{opacity:0}4.297%{opacity:1}6.459%{opacity:1}8.713%{opacity:1}11.024%{opacity:1}13.397%{opacity:1}13.437%{opacity:0}15.837%{opacity:0}18.350%{opacity:0}20.943%{opacity:0}23.624%{opacity:0}23.664%{opacity:1}26.402%{opacity:1}29.289%{opacity:1}32.300%{opacity:1}35.450%{opacity:1}35.490%{opacity:0}38.763%{opacity:0}42.265%{opacity:0}45.994%{opacity:0}50.000%{opacity:0}50.040%{opacity:1}54.356%{opacity:1}59.175%{opacity:1}64.645%{opacity:1}71.132%{opacity:1}71.172%{opacity:0}79.588%{opacity:0}to{opacity:0}}
+  @keyframes coin-spin-s0-d1260{from{transform:scaleX(1.0000)}1.802%{transform:scaleX(0.7071)}3.638%{transform:scaleX(0.0000)}3.678%{transform:scaleX(0.0000)}5.509%{transform:scaleX(0.7071)}7.418%{transform:scaleX(1.0000)}9.367%{transform:scaleX(0.7071)}11.359%{transform:scaleX(0.0000)}11.399%{transform:scaleX(0.0000)}13.397%{transform:scaleX(0.7071)}15.485%{transform:scaleX(1.0000)}17.625%{transform:scaleX(0.7071)}19.822%{transform:scaleX(0.0000)}19.862%{transform:scaleX(0.0000)}22.081%{transform:scaleX(0.7071)}24.407%{transform:scaleX(1.0000)}26.807%{transform:scaleX(0.7071)}29.289%{transform:scaleX(0.0000)}29.329%{transform:scaleX(0.0000)}31.861%{transform:scaleX(0.7071)}34.535%{transform:scaleX(1.0000)}37.322%{transform:scaleX(0.7071)}40.239%{transform:scaleX(0.0000)}40.279%{transform:scaleX(0.0000)}43.305%{transform:scaleX(0.7071)}46.548%{transform:scaleX(1.0000)}50.000%{transform:scaleX(0.7071)}53.709%{transform:scaleX(0.0000)}53.749%{transform:scaleX(0.0000)}57.742%{transform:scaleX(0.7071)}62.204%{transform:scaleX(1.0000)}67.267%{transform:scaleX(0.7071)}73.274%{transform:scaleX(0.0000)}73.314%{transform:scaleX(0.0000)}81.102%{transform:scaleX(0.7071)}to{transform:scaleX(1.0000)}}
+  @keyframes coin-spin-s0-d1260-castle{from{opacity:1}1.802%{opacity:1}3.638%{opacity:1}3.678%{opacity:0}5.509%{opacity:0}7.418%{opacity:0}9.367%{opacity:0}11.359%{opacity:0}11.399%{opacity:1}13.397%{opacity:1}15.485%{opacity:1}17.625%{opacity:1}19.822%{opacity:1}19.862%{opacity:0}22.081%{opacity:0}24.407%{opacity:0}26.807%{opacity:0}29.289%{opacity:0}29.329%{opacity:1}31.861%{opacity:1}34.535%{opacity:1}37.322%{opacity:1}40.239%{opacity:1}40.279%{opacity:0}43.305%{opacity:0}46.548%{opacity:0}50.000%{opacity:0}53.709%{opacity:0}53.749%{opacity:1}57.742%{opacity:1}62.204%{opacity:1}67.267%{opacity:1}73.274%{opacity:1}73.314%{opacity:0}81.102%{opacity:0}to{opacity:0}}
+  @keyframes coin-spin-s0-d1260-fire{from{opacity:0}1.802%{opacity:0}3.638%{opacity:0}3.678%{opacity:1}5.509%{opacity:1}7.418%{opacity:1}9.367%{opacity:1}11.359%{opacity:1}11.399%{opacity:0}13.397%{opacity:0}15.485%{opacity:0}17.625%{opacity:0}19.822%{opacity:0}19.862%{opacity:1}22.081%{opacity:1}24.407%{opacity:1}26.807%{opacity:1}29.289%{opacity:1}29.329%{opacity:0}31.861%{opacity:0}34.535%{opacity:0}37.322%{opacity:0}40.239%{opacity:0}40.279%{opacity:1}43.305%{opacity:1}46.548%{opacity:1}50.000%{opacity:1}53.709%{opacity:1}53.749%{opacity:0}57.742%{opacity:0}62.204%{opacity:0}67.267%{opacity:0}73.274%{opacity:0}73.314%{opacity:1}81.102%{opacity:1}to{opacity:1}}
+  @keyframes coin-spin-s180-d1080{from{transform:scaleX(1.0000)}2.105%{transform:scaleX(0.7071)}4.257%{transform:scaleX(0.0000)}4.297%{transform:scaleX(0.0000)}6.459%{transform:scaleX(0.7071)}8.713%{transform:scaleX(1.0000)}11.024%{transform:scaleX(0.7071)}13.397%{transform:scaleX(0.0000)}13.437%{transform:scaleX(0.0000)}15.837%{transform:scaleX(0.7071)}18.350%{transform:scaleX(1.0000)}20.943%{transform:scaleX(0.7071)}23.624%{transform:scaleX(0.0000)}23.664%{transform:scaleX(0.0000)}26.402%{transform:scaleX(0.7071)}29.289%{transform:scaleX(1.0000)}32.300%{transform:scaleX(0.7071)}35.450%{transform:scaleX(0.0000)}35.490%{transform:scaleX(0.0000)}38.763%{transform:scaleX(0.7071)}42.265%{transform:scaleX(1.0000)}45.994%{transform:scaleX(0.7071)}50.000%{transform:scaleX(0.0000)}50.040%{transform:scaleX(0.0000)}54.356%{transform:scaleX(0.7071)}59.175%{transform:scaleX(1.0000)}64.645%{transform:scaleX(0.7071)}71.132%{transform:scaleX(0.0000)}71.172%{transform:scaleX(0.0000)}79.588%{transform:scaleX(0.7071)}to{transform:scaleX(1.0000)}}
+  @keyframes coin-spin-s180-d1080-castle{from{opacity:0}2.105%{opacity:0}4.257%{opacity:0}4.297%{opacity:1}6.459%{opacity:1}8.713%{opacity:1}11.024%{opacity:1}13.397%{opacity:1}13.437%{opacity:0}15.837%{opacity:0}18.350%{opacity:0}20.943%{opacity:0}23.624%{opacity:0}23.664%{opacity:1}26.402%{opacity:1}29.289%{opacity:1}32.300%{opacity:1}35.450%{opacity:1}35.490%{opacity:0}38.763%{opacity:0}42.265%{opacity:0}45.994%{opacity:0}50.000%{opacity:0}50.040%{opacity:1}54.356%{opacity:1}59.175%{opacity:1}64.645%{opacity:1}71.132%{opacity:1}71.172%{opacity:0}79.588%{opacity:0}to{opacity:0}}
+  @keyframes coin-spin-s180-d1080-fire{from{opacity:1}2.105%{opacity:1}4.257%{opacity:1}4.297%{opacity:0}6.459%{opacity:0}8.713%{opacity:0}11.024%{opacity:0}13.397%{opacity:0}13.437%{opacity:1}15.837%{opacity:1}18.350%{opacity:1}20.943%{opacity:1}23.624%{opacity:1}23.664%{opacity:0}26.402%{opacity:0}29.289%{opacity:0}32.300%{opacity:0}35.450%{opacity:0}35.490%{opacity:1}38.763%{opacity:1}42.265%{opacity:1}45.994%{opacity:1}50.000%{opacity:1}50.040%{opacity:0}54.356%{opacity:0}59.175%{opacity:0}64.645%{opacity:0}71.132%{opacity:0}71.172%{opacity:1}79.588%{opacity:1}to{opacity:1}}
+  @keyframes coin-spin-s180-d1260{from{transform:scaleX(1.0000)}1.802%{transform:scaleX(0.7071)}3.638%{transform:scaleX(0.0000)}3.678%{transform:scaleX(0.0000)}5.509%{transform:scaleX(0.7071)}7.418%{transform:scaleX(1.0000)}9.367%{transform:scaleX(0.7071)}11.359%{transform:scaleX(0.0000)}11.399%{transform:scaleX(0.0000)}13.397%{transform:scaleX(0.7071)}15.485%{transform:scaleX(1.0000)}17.625%{transform:scaleX(0.7071)}19.822%{transform:scaleX(0.0000)}19.862%{transform:scaleX(0.0000)}22.081%{transform:scaleX(0.7071)}24.407%{transform:scaleX(1.0000)}26.807%{transform:scaleX(0.7071)}29.289%{transform:scaleX(0.0000)}29.329%{transform:scaleX(0.0000)}31.861%{transform:scaleX(0.7071)}34.535%{transform:scaleX(1.0000)}37.322%{transform:scaleX(0.7071)}40.239%{transform:scaleX(0.0000)}40.279%{transform:scaleX(0.0000)}43.305%{transform:scaleX(0.7071)}46.548%{transform:scaleX(1.0000)}50.000%{transform:scaleX(0.7071)}53.709%{transform:scaleX(0.0000)}53.749%{transform:scaleX(0.0000)}57.742%{transform:scaleX(0.7071)}62.204%{transform:scaleX(1.0000)}67.267%{transform:scaleX(0.7071)}73.274%{transform:scaleX(0.0000)}73.314%{transform:scaleX(0.0000)}81.102%{transform:scaleX(0.7071)}to{transform:scaleX(1.0000)}}
+  @keyframes coin-spin-s180-d1260-castle{from{opacity:0}1.802%{opacity:0}3.638%{opacity:0}3.678%{opacity:1}5.509%{opacity:1}7.418%{opacity:1}9.367%{opacity:1}11.359%{opacity:1}11.399%{opacity:0}13.397%{opacity:0}15.485%{opacity:0}17.625%{opacity:0}19.822%{opacity:0}19.862%{opacity:1}22.081%{opacity:1}24.407%{opacity:1}26.807%{opacity:1}29.289%{opacity:1}29.329%{opacity:0}31.861%{opacity:0}34.535%{opacity:0}37.322%{opacity:0}40.239%{opacity:0}40.279%{opacity:1}43.305%{opacity:1}46.548%{opacity:1}50.000%{opacity:1}53.709%{opacity:1}53.749%{opacity:0}57.742%{opacity:0}62.204%{opacity:0}67.267%{opacity:0}73.274%{opacity:0}73.314%{opacity:1}81.102%{opacity:1}to{opacity:1}}
+  @keyframes coin-spin-s180-d1260-fire{from{opacity:1}1.802%{opacity:1}3.638%{opacity:1}3.678%{opacity:0}5.509%{opacity:0}7.418%{opacity:0}9.367%{opacity:0}11.359%{opacity:0}11.399%{opacity:1}13.397%{opacity:1}15.485%{opacity:1}17.625%{opacity:1}19.822%{opacity:1}19.862%{opacity:0}22.081%{opacity:0}24.407%{opacity:0}26.807%{opacity:0}29.289%{opacity:0}29.329%{opacity:1}31.861%{opacity:1}34.535%{opacity:1}37.322%{opacity:1}40.239%{opacity:1}40.279%{opacity:0}43.305%{opacity:0}46.548%{opacity:0}50.000%{opacity:0}53.709%{opacity:0}53.749%{opacity:1}57.742%{opacity:1}62.204%{opacity:1}67.267%{opacity:1}73.274%{opacity:1}73.314%{opacity:0}81.102%{opacity:0}to{opacity:0}}
 </style>
 </head>
 <body>
@@ -663,11 +712,11 @@
     <h2 id="coinTitle">Fire or Castle</h2>
     <div class="coin-scene">
       <div class="coin" id="coin">
-        <div class="coin-face castle">
+        <div class="coin-face castle" id="coinCastle">
           <span class="coin-glyph" data-icon="tower"></span>
           <span class="coin-word">Castle</span>
         </div>
-        <div class="coin-face fire">
+        <div class="coin-face fire" id="coinFire">
           <span class="coin-glyph" aria-hidden="true">
             <svg viewBox="0 0 80 80">
               <path fill="currentColor" d="M40 4c2 14-10 18-10 32 0 7 4 12 10 15-12-3-20-14-20-26 0-12 10-18 12-30 4 12 6 16 8 9z"/>
@@ -1033,7 +1082,7 @@
   function resizeCanvas() {
     const rect = wheelWrap.getBoundingClientRect();
     size = Math.max(140, Math.round(rect.width));
-    dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    dpr = Math.min(window.devicePixelRatio || 1, window.innerWidth < 820 ? 1.5 : 2);
     canvas.width = Math.round(size * dpr);
     canvas.height = Math.round(size * dpr);
     faceDirty = true;
@@ -1331,26 +1380,47 @@
   const FLIGHT_MS = 200;
   const BITE_MS = 70;
   const START_SCALE = 2.85;
-  const FLIGHT_EASE = 'linear';
   let shotToken = 0;
+  let shotCleanup = null;
 
-  function cancelShotAnims() {
-    arrow.getAnimations().forEach(a => a.cancel());
-    arrowAim.getAnimations().forEach(a => a.cancel());
+  function disarmShot() {
+    if (!shotCleanup) return;
+    const fn = shotCleanup;
+    shotCleanup = null;
+    fn();
+  }
+
+  // Drop motion without WAAPI cancel(). On iOS, fill:forwards plus
+  // cancel() snaps the transform or never paints it.
+  function stopArrowMotion() {
+    disarmShot();
+    arrow.style.transition = 'none';
+    arrowAim.style.transition = 'none';
+    arrowAim.style.animation = 'none';
   }
 
   function hideArrow() {
     shotToken++;
-    cancelShotAnims();
+    stopArrowMotion();
     arrow.classList.remove('show');
   }
 
   // Tip sits at the arrow element's origin. deg 0 points the head down.
+  // Translate stays on the outer layer; rotate and scale stay on the aim.
   function poseArrow(x, y, deg, scale, sink) {
     arrow.style.transform = `translate3d(${x}px,${y}px,0)`;
     arrowAim.style.transform = sink
       ? `rotate(${deg}deg) scale(${scale}) translateY(${sink}px)`
       : `rotate(${deg}deg) scale(${scale})`;
+  }
+
+  // iOS Safari drops a transform animation that starts in the same turn the
+  // layer becomes visible. A sync reflow commits that pose; a rAF wait
+  // reads as a hitch. One flush, before the flight, never inside it.
+  function commitArrow() {
+    void arrow.offsetWidth;
+    void getComputedStyle(arrow).transform;
+    void getComputedStyle(arrowAim).transform;
   }
 
   // Inline SVG is re-rasterized when scaled, which stutters on phones.
@@ -1376,12 +1446,11 @@
     const n = remainingDecks().length;
     if (n === 0) return;
 
-    audio.ensure();
     spinning = true;
     highlightIdx = -1;
     setControlsEnabled(false);
     const token = ++shotToken;
-    cancelShotAnims();
+    stopArrowMotion();
 
     const arc = TAU / n;
     const winner = randInt(n);
@@ -1401,19 +1470,37 @@
     arrowAim.style.marginLeft = (-aw / 2) + 'px';
     arrowAim.style.marginTop = (-ah) + 'px';
 
-    // Feathers hang below the tip, toward the hand. Sit the tip just
-    // under the wood when the shaft is taller than the gap; otherwise
-    // leave the whole arrow in view, feathers at the bottom edge.
+    // Feathers hang below the tip, toward the hand. Fit the whole shaft
+    // on screen when the gap allows. On a short viewport, pin the tip
+    // just under the wood so the shaft stays in that gap instead of
+    // starting off the bottom edge of the phone.
     const startX = cx + (rand() - 0.5) * board.width * 0.06;
     const tail = ah * START_SCALE;
-    let startY = window.innerHeight - tail - 8;
+    const vv = window.visualViewport;
+    const visibleBottom = vv && vv.height > 0 ? Math.min(window.innerHeight, vv.height) : window.innerHeight;
+    let startY = visibleBottom - tail - 8;
     const minTip = board.bottom + 24;
-    if (startY < minTip) startY = Math.min(minTip, window.innerHeight - 28);
+    if (startY < minTip) startY = minTip;
+    if (startY > visibleBottom - 12) startY = visibleBottom - 12;
     const travel = Math.atan2(endY - startY, endX - startX);
     const deg = travel * 180 / Math.PI - 90;
 
+    // Explicit from/to. A transition would depart from the previous
+    // frame, so the second shot never leaves. Keyframes do not.
+    arrow.style.setProperty('--from-x', startX + 'px');
+    arrow.style.setProperty('--from-y', startY + 'px');
+    arrow.style.setProperty('--to-x', endX + 'px');
+    arrow.style.setProperty('--to-y', endY + 'px');
+    arrowAim.style.setProperty('--shot-deg', deg + 'deg');
+    arrowAim.style.setProperty('--from-scale', String(START_SCALE));
+    arrowAim.style.setProperty('--to-scale', '1');
+
+    // Start pose and visibility first. Flush before the animation —
+    // iOS drops a transform animation begun in the same turn the layer
+    // becomes visible. Width was already set, once.
     poseArrow(startX, startY, deg, START_SCALE, 0);
     arrow.classList.add('show');
+    commitArrow();
 
     if (reduceMotion.matches) {
       poseArrow(endX, endY, deg, 1, 0);
@@ -1421,32 +1508,32 @@
       return;
     }
 
-    // One frame so the layer is promoted and the bitmap is on the GPU
-    // before the first step of the flight.
-    requestAnimationFrame(() => {
-      if (token !== shotToken) return;
-      audio.whoosh();
-      const move = arrow.animate(
-        [
-          { transform: `translate3d(${startX}px,${startY}px,0)` },
-          { transform: `translate3d(${endX}px,${endY}px,0)` },
-        ],
-        { duration: FLIGHT_MS, easing: FLIGHT_EASE, fill: 'forwards' }
-      );
-      arrowAim.animate(
-        [
-          { transform: `rotate(${deg}deg) scale(${START_SCALE})` },
-          { transform: `rotate(${deg}deg) scale(1)` },
-        ],
-        { duration: FLIGHT_MS, easing: FLIGHT_EASE, fill: 'forwards' }
-      );
-      move.finished.then(() => {
-        if (token !== shotToken) return;
-        poseArrow(endX, endY, deg, 1, 0);
-        cancelShotAnims();
-        finishSpin(winner, deg, endX, endY, token);
-      }).catch(() => {});
-    });
+    let arrived = false;
+    const started = performance.now();
+    function arrive() {
+      if (arrived || token !== shotToken) return;
+      arrived = true;
+      disarmShot();
+      poseArrow(endX, endY, deg, 1, 0);
+      arrow.style.animation = 'none';
+      arrowAim.style.animation = 'none';
+      finishSpin(winner, deg, endX, endY, token);
+    }
+    function onFlightEnd(e) {
+      if (e.target !== arrow || e.animationName !== 'arrow-flight') return;
+      if (performance.now() - started < FLIGHT_MS - 40) return;
+      arrive();
+    }
+    const flightTimer = setTimeout(arrive, FLIGHT_MS + 80);
+    shotCleanup = () => {
+      clearTimeout(flightTimer);
+      arrow.removeEventListener('animationend', onFlightEnd);
+    };
+    arrow.addEventListener('animationend', onFlightEnd);
+    // 200ms linear. Translate on the outer layer, rotate/scale on the aim.
+    arrow.style.animation = `arrow-flight ${FLIGHT_MS}ms linear both`;
+    arrowAim.style.animation = `arrow-aim-flight ${FLIGHT_MS}ms linear both`;
+    audio.whoosh();
   }
 
   function finishSpin(winnerIdx, deg, x, y, token) {
@@ -1454,33 +1541,52 @@
     const player = currentPlayer();
     highlightIdx = winnerIdx;
     highlightPulse = 1.6;
-    drawWheel();
-    audio.thunk();
-    if (navigator.vibrate) { try { navigator.vibrate(12); } catch { /* unsupported */ } }
 
     if (reduceMotion.matches) {
+      audio.thunk();
+      if (navigator.vibrate) { try { navigator.vibrate(12); } catch { /* unsupported */ } }
+      drawWheel();
       spinning = false;
       pendingResult = { player, deck };
       showResult(player, deck);
       return;
     }
 
-    const bite = arrowAim.animate(
-      [
-        { transform: `rotate(${deg}deg) scale(1) translateY(0px)` },
-        { transform: `rotate(${deg + 0.7}deg) scale(1) translateY(2.2px)`, offset: 0.4 },
-        { transform: `rotate(${deg}deg) scale(1) translateY(0.4px)` },
-      ],
-      { duration: BITE_MS, easing: 'linear', fill: 'forwards' }
-    );
-    bite.finished.then(() => {
-      if (token !== shotToken) return;
+    // Impact pose is already inline. Commit it, then run the 70ms bite
+    // as a transform animation so iOS cannot drop it against a fresh
+    // style.transform write. The highlight redraw waits until a frame
+    // has painted so the arrow does not freeze.
+    arrowAim.style.setProperty('--shot-deg', deg + 'deg');
+    poseArrow(x, y, deg, 1, 0);
+    commitArrow();
+
+    let bitten = false;
+    function done() {
+      if (bitten || token !== shotToken) return;
+      bitten = true;
+      disarmShot();
       poseArrow(x, y, deg, 1, 0.4);
-      cancelShotAnims();
+      arrowAim.style.animation = 'none';
       spinning = false;
       pendingResult = { player, deck };
       showResult(player, deck);
-    }).catch(() => {});
+    }
+    function onBite(e) {
+      if (e.target !== arrowAim || e.animationName !== 'arrow-bite') return;
+      done();
+    }
+    const biteTimer = setTimeout(done, BITE_MS + 80);
+    shotCleanup = () => {
+      clearTimeout(biteTimer);
+      arrowAim.removeEventListener('animationend', onBite);
+    };
+    arrowAim.addEventListener('animationend', onBite);
+    arrowAim.style.animation = `arrow-bite ${BITE_MS}ms linear forwards`;
+    audio.thunk();
+    if (navigator.vibrate) { try { navigator.vibrate(12); } catch { /* unsupported */ } }
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => { if (token === shotToken) drawWheel(); });
+    });
   }
 
   function commitResult() {
@@ -1584,21 +1690,56 @@
   }
 
   function hideOverlays() {
-    $('coin').getAnimations().forEach(a => a.cancel());
+    coinTossToken++;
+    coinOpenTicket++;
+    stopCoinMotion();
+    tossing = false;
     $('resultOverlay').hidden = true;
     $('finalOverlay').hidden = true;
     $('coinOverlay').hidden = true;
-    tossing = false;
   }
 
   /* =========================================================
      Coin toss — fire or castle, for the opening turn
      ========================================================= */
   const coin = $('coin');
+  const coinCastle = $('coinCastle');
+  const coinFire = $('coinFire');
+  let coinTossToken = 0;
+  let coinOpenTicket = 0;
+  let coinTossCleanup = null;
+  const COIN_MS = 420;
   const FLAME_SVG = `<svg viewBox="0 0 80 80" aria-hidden="true"><path fill="currentColor" d="M40 4c2 14-10 18-10 32 0 7 4 12 10 15-12-3-20-14-20-26 0-12 10-18 12-30 4 12 6 16 8 9z"/><path fill="#fff4d2" d="M40 30c2 9-6 13-6 21 0 6 3 9 6 11-7-1-12-8-12-15 0-7 6-11 7-19 2 7 4 9 5 2z"/></svg>`;
 
-  function setCoinAngle(deg) {
-    coin.style.transform = `rotateX(18deg) rotateY(${deg}deg)`;
+  // Drop motion without WAAPI cancel(). On iOS, fill plus cancel() snaps
+  // the transform or never paints it.
+  function disarmCoinToss() {
+    if (!coinTossCleanup) return;
+    const fn = coinTossCleanup;
+    coinTossCleanup = null;
+    fn();
+  }
+
+  function stopCoinMotion() {
+    disarmCoinToss();
+    coin.style.animation = 'none';
+    coinCastle.style.animation = 'none';
+    coinFire.style.animation = 'none';
+    coin.style.transform = '';
+  }
+
+  // Resting face is a class, not an inline transform. The spin keyframes
+  // own #coin's transform; Safari drops them if an inline transform is set.
+  function setCoinFace(face) {
+    stopCoinMotion();
+    coin.classList.toggle('show-fire', face === 'fire');
+  }
+
+  // Call only after #coinOverlay is displayed. A spin started while it is
+  // display:none, or in that same turn, never paints on iOS.
+  function commitCoin() {
+    void $('coinOverlay').offsetWidth;
+    void coin.offsetWidth;
   }
 
   function ensureToss() {
@@ -1637,7 +1778,7 @@
     $('btnToss').textContent = t.face ? 'Toss again' : 'Toss the Coin';
     $('btnToss').disabled = tossing;
     $('btnSwapSides').disabled = tossing;
-    if (!tossing) setCoinAngle(t.face === 'fire' ? 180 : 0);
+    if (!tossing) setCoinFace(t.face === 'fire' ? 'fire' : 'castle');
     renderOpenerLine();
   }
 
@@ -1646,55 +1787,81 @@
     ensureToss();
     tossing = false;
     renderToss();
-    $('coinOverlay').hidden = false;
-    $('btnToss').focus({ preventScroll: true });
+    const overlay = $('coinOverlay');
+    overlay.hidden = false;
+    commitCoin();
+    audio.ensure();
+    if (game.toss.face) {
+      $('btnToss').focus({ preventScroll: true });
+      return;
+    }
+    tossing = true;
+    renderToss();
+    const ticket = ++coinOpenTicket;
+    // The overlay has been displayed. Spin on the next frame so Safari
+    // does not drop a toss that starts in the turn display:none clears.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (ticket !== coinOpenTicket) return;
+        if (overlay.hidden || !game?.toss || game.toss.face) return;
+        tossing = false;
+        tossCoin();
+      });
+    });
   }
 
   function tossCoin() {
     if (tossing || !game.toss) return;
-    const ctx = audio.ensure();
+    if ($('coinOverlay').hidden) return;
     const start = game.toss.face === 'fire' ? 180 : 0;
+    const fire = rand() < 0.5;
+    const landing = fire ? 180 : 0;
+    let delta = 3 * 360 + (landing - start);
+    if (delta < 3 * 360) delta += 360;
+
     tossing = true;
     game.toss.face = null;
     renderToss();
-    coin.getAnimations().forEach(a => a.cancel());
 
-    const fire = rand() < 0.5;
-    const turns = reduceMotion.matches ? 0 : 3;
-    let end = turns * 360 + (fire ? 180 : 0);
-    if (end <= start) end += 360;
-    const delta = end - start;
-    const duration = reduceMotion.matches ? 160 : 680;
-    const steps = reduceMotion.matches ? 1 : 28;
-    const frames = [];
-    for (let i = 0; i <= steps; i++) {
-      const t = i / steps;
-      const e = 1 - Math.pow(1 - t, 3);
-      frames.push({
-        transform: `rotateX(18deg) rotateY(${start + delta * e}deg)`,
-        offset: t,
-      });
-    }
+    const token = ++coinTossToken;
+    const name = `coin-spin-s${start}-d${delta}`;
+    setCoinFace(start === 180 ? 'fire' : 'castle');
+    audio.ensure();
 
-    if (ctx && !reduceMotion.matches) {
-      const t0 = ctx.currentTime + 0.02;
-      for (let angle = 180; angle < delta - 40; angle += 180) {
-        const p = angle / delta;
-        const when = t0 + (1 - Math.pow(1 - p, 1 / 3)) * duration / 1000;
-        audio.clink(true, when);
-      }
-    }
-
-    const spin = coin.animate(frames, { duration, easing: 'linear', fill: 'forwards' });
-    spin.finished.then(() => {
-      if (!tossing || !game?.toss) return;
-      setCoinAngle(fire ? 180 : 0);
-      spin.cancel();
+    if (reduceMotion.matches) {
       tossing = false;
       game.toss.face = fire ? 'fire' : 'castle';
       audio.clink(false);
       renderToss();
-    }).catch(() => {});
+      return;
+    }
+
+    commitCoin();
+
+    const started = performance.now();
+    function finishToss() {
+      if (token !== coinTossToken || !tossing || !game?.toss) return;
+      tossing = false;
+      disarmCoinToss();
+      game.toss.face = fire ? 'fire' : 'castle';
+      audio.clink(false);
+      renderToss();
+    }
+    function onEnd(ev) {
+      if (ev.target !== coin || ev.animationName !== name) return;
+      if (performance.now() - started < COIN_MS - 40) return;
+      finishToss();
+    }
+    const timer = setTimeout(finishToss, COIN_MS + 80);
+    coinTossCleanup = () => {
+      clearTimeout(timer);
+      coin.removeEventListener('animationend', onEnd);
+    };
+    coin.addEventListener('animationend', onEnd);
+    const timing = `${COIN_MS}ms linear both`;
+    coinCastle.style.animation = `${name}-castle ${timing}`;
+    coinFire.style.animation = `${name}-fire ${timing}`;
+    coin.style.animation = `${name} ${timing}`;
   }
 
   /* =========================================================
@@ -1910,6 +2077,11 @@
   newGame();
   resizeCanvas();
 })();
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js', { scope: '/apps/gwent-squire/' }).catch(function () {});
+}
 </script>
 </body>
 </html>

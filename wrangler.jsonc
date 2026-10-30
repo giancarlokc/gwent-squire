@@ -18,7 +18,7 @@
   },
   "routes": [
     {
-      "pattern": "stillhumanlabs.com/stilllabs*",
+      "pattern": "stillhumanlabs.com/apps/gwent-squire*",
       "zone_name": "stillhumanlabs.com"
     }
   ]

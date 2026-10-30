@@ -1,4 +1,4 @@
-const PREFIX = "/stilllabs";
+const PREFIX = "/apps/gwent-squire";
 
 export default {
   async fetch(request, env) {
