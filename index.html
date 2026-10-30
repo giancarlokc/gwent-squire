@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1a1008">
-<meta name="description" content="A medieval, Witcher-themed spinning target that randomly assigns Gwent decks to players.">
+<meta name="description" content="A medieval, Witcher-themed archery target that randomly assigns Gwent decks to players.">
 <title>Wheel of Destiny — Gwent Deck Picker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -182,7 +182,8 @@
     position: relative;
     width: var(--wheel);
     aspect-ratio: 1 / 1;
-    margin: calc(var(--wheel) * .15) auto calc(var(--wheel) * .12);
+    margin: .75rem auto calc(var(--wheel) * .1);
+    overflow: visible;
     user-select: none; -webkit-user-select: none;
   }
   .wheel-wrap::before {
@@ -206,30 +207,24 @@
     touch-action: manipulation;
   }
 
-  .pointer {
-    position: absolute; z-index: 3;
-    top: -13%; left: 50%; width: 6.5%; aspect-ratio: 40 / 120;
-    transform: translateX(-50%);
-    transform-origin: 50% 4%;
-    pointer-events: none;
-    filter: drop-shadow(3px 6px 4px rgba(0,0,0,.55));
+  /* Fixed layer. The tip sits at the element's origin; only transform moves it.
+     The bitmap is promoted once so the flight never touches layout or SVG. */
+  .arrow {
+    position: fixed; left: 0; top: 0; width: 0; height: 0; z-index: 40;
+    pointer-events: none; visibility: hidden;
+    will-change: transform;
+    backface-visibility: hidden;
   }
-  .pointer svg { width: 100%; height: 100%; display: block; overflow: visible; }
-  .pointer.nudge { animation: nudge .12s ease-out; }
-  @keyframes nudge {
-    0% { transform: translateX(-50%) rotate(0); }
-    40% { transform: translateX(-50%) rotate(-9deg); }
-    100% { transform: translateX(-50%) rotate(0); }
+  .arrow.show { visibility: visible; }
+  .arrow-aim {
+    position: absolute; left: 0; top: 0;
+    width: 28px; height: 92px; margin-left: -14px; margin-top: -92px;
+    transform-origin: 50% 100%;
+    will-change: transform;
+    backface-visibility: hidden;
   }
-  .pointer.strike { animation: strike .9s cubic-bezier(.2,.8,.3,1); }
-  @keyframes strike {
-    0%   { transform: translateX(-50%) translateY(0) rotate(0); }
-    12%  { transform: translateX(-50%) translateY(6%) rotate(0); }
-    26%  { transform: translateX(-50%) translateY(4%) rotate(3deg); }
-    40%  { transform: translateX(-50%) translateY(4%) rotate(-2.4deg); }
-    55%  { transform: translateX(-50%) translateY(4%) rotate(1.5deg); }
-    70%  { transform: translateX(-50%) translateY(4%) rotate(-.8deg); }
-    100% { transform: translateX(-50%) translateY(0) rotate(0); }
+  .arrow-aim svg, .arrow-aim img {
+    width: 100%; height: 100%; display: block; pointer-events: none;
   }
 
   /* Bullseye hub */
@@ -386,6 +381,75 @@
   .summary .who { flex: 1; }
   .summary .what { text-align: right; }
   .card .row { display: flex; gap: .7rem; justify-content: center; flex-wrap: wrap; }
+  .opener-line { margin: -.4rem 0 1rem; font-size: 1.08rem; color: var(--ink); }
+  .opener-line strong { font-family: var(--font-sc); font-weight: normal; color: var(--crimson-deep); }
+
+  /* ---------- Coin ---------- */
+  #coinOverlay { z-index: 60; }
+  .coin-scene {
+    width: 148px; height: 148px; margin: .85rem auto .35rem;
+    perspective: 900px; position: relative;
+  }
+  .coin {
+    width: 100%; height: 100%; position: relative;
+    transform-style: preserve-3d;
+    transform: rotateX(18deg);
+    will-change: transform;
+  }
+  .coin-face {
+    position: absolute; inset: 0; border-radius: 50%;
+    backface-visibility: hidden; -webkit-backface-visibility: hidden;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .05rem;
+    box-shadow: inset 0 0 0 3px rgba(255,236,190,.55), inset 0 0 0 8px rgba(70,42,12,.55), inset 0 0 22px rgba(0,0,0,.35);
+  }
+  .coin-face::after {
+    content: ""; position: absolute; inset: 11px; border-radius: 50%;
+    border: 1.5px dashed rgba(60,36,10,.35); pointer-events: none;
+  }
+  .flavor strong { font-family: var(--font-sc); font-weight: normal; color: var(--crimson-deep); }
+  .coin-face.castle {
+    transform: translateZ(1px);
+    background:
+      radial-gradient(circle at 32% 28%, #fff1c4, #e4c074 38%, #a67c32 72%, #6d4e16);
+    color: #3a2710;
+  }
+  .coin-face.fire {
+    transform: rotateY(180deg) translateZ(1px);
+    background:
+      radial-gradient(circle at 32% 28%, #ffd7a0, #e06a28 36%, #9c2c14 70%, #4c100c);
+    color: #ffe8c2;
+  }
+  .coin-face.fire::after { border-color: rgba(255,220,170,.35); }
+  .coin-glyph { width: 52px; height: 52px; position: relative; z-index: 1; }
+  .coin-glyph svg { width: 100%; height: 100%; display: block; }
+  .coin-word {
+    position: relative; z-index: 1;
+    font-family: var(--font-sc); letter-spacing: .16em; font-size: .82rem; line-height: 1;
+  }
+  .sides { list-style: none; margin: .7rem 0 .2rem; padding: 0; display: flex; flex-direction: column; gap: .3rem; text-align: left; }
+  .sides li {
+    display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: .6rem;
+    padding: .35rem .55rem; border-radius: 8px; border: 1px solid transparent;
+  }
+  .sides li.chosen { background: rgba(140,35,25,.1); border-color: rgba(140,35,25,.35); }
+  .side-badge {
+    width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center;
+    box-shadow: inset 0 0 0 1.5px rgba(60,36,10,.35);
+  }
+  .side-badge svg { width: 20px; height: 20px; }
+  .side-badge.castle { background: radial-gradient(circle at 35% 30%, #fff1c4, #a67c32); color: #3a2710; }
+  .side-badge.fire { background: radial-gradient(circle at 35% 30%, #e25822, #6a140e); color: #ffe7c0; }
+  .sides .label { font-family: var(--font-sc); letter-spacing: .1em; font-size: .92rem; color: var(--ink-soft); }
+  .sides .player { color: var(--ink); font-size: 1.05rem; }
+  .text-btn {
+    appearance: none; background: none; border: none; padding: 0; cursor: pointer;
+    font: inherit; font-style: italic; color: var(--ink-soft); text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .text-btn:hover:not(:disabled) { color: var(--crimson); }
+  .text-btn:disabled { opacity: .4; cursor: not-allowed; }
+  .text-btn:focus-visible { outline: 2px solid var(--crimson); outline-offset: 3px; }
+  .coin-follow { margin: .35rem 0 .2rem; }
 
   /* ---------- Settings dialog ---------- */
   dialog.dialog {
@@ -480,6 +544,30 @@
 </style>
 </head>
 <body>
+<div class="arrow" id="arrow" aria-hidden="true">
+  <div class="arrow-aim" id="arrowAim">
+    <svg viewBox="0 0 40 120">
+      <defs>
+        <linearGradient id="shaft" x1="0" x2="1">
+          <stop offset="0" stop-color="#6b4526"/><stop offset=".45" stop-color="#c99a5c"/><stop offset="1" stop-color="#7a5230"/>
+        </linearGradient>
+        <linearGradient id="steel" x1="0" x2="1">
+          <stop offset="0" stop-color="#5a5650"/><stop offset=".5" stop-color="#e2ded6"/><stop offset="1" stop-color="#6b6660"/>
+        </linearGradient>
+      </defs>
+      <path d="M18 5 C10 11 6 21 5 36 L18 31 Z" fill="#9e2a1d" stroke="#3a0d07" stroke-width="1"/>
+      <path d="M22 5 C30 11 34 21 35 36 L22 31 Z" fill="#9e2a1d" stroke="#3a0d07" stroke-width="1"/>
+      <path d="M9 18 L18 16 M7 25 L18 22 M31 18 L22 16 M33 25 L22 22" stroke="#3a0d07" stroke-opacity=".55" stroke-width=".8"/>
+      <rect x="18.2" y="3" width="3.6" height="99" rx="1.2" fill="url(#shaft)" stroke="#2a170a" stroke-width=".6"/>
+      <path d="M18 5 L22 5 L22 33 L18 33 Z" fill="#efe2c4" stroke="#6b5a40" stroke-width=".5"/>
+      <rect x="17.4" y="0" width="5.2" height="4" rx="1" fill="#2a170a"/>
+      <rect x="17.6" y="34" width="4.8" height="3" fill="#2a170a"/>
+      <rect x="17.6" y="94" width="4.8" height="3" fill="#2a170a"/>
+      <path d="M20 120 L9 99 L16 100.5 L16 96 L24 96 L24 100.5 L31 99 Z" fill="url(#steel)" stroke="#1e1c1a" stroke-width="1" stroke-linejoin="round"/>
+      <path d="M20 118 L20 97" stroke="#1e1c1a" stroke-opacity=".35" stroke-width=".8"/>
+    </svg>
+  </div>
+</div>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
   <filter id="rough" x="-5%" y="-5%" width="110%" height="110%">
     <feTurbulence type="fractalNoise" baseFrequency="0.045" numOctaves="3" seed="4"/>
@@ -519,34 +607,12 @@
 
     <div class="wheel-wrap" id="wheelWrap">
       <div class="stand" aria-hidden="true"><span class="leg l"></span><span class="leg r"></span></div>
-      <div class="pointer" id="pointer" aria-hidden="true">
-        <svg viewBox="0 0 40 120">
-          <defs>
-            <linearGradient id="shaft" x1="0" x2="1">
-              <stop offset="0" stop-color="#6b4526"/><stop offset=".45" stop-color="#c99a5c"/><stop offset="1" stop-color="#7a5230"/>
-            </linearGradient>
-            <linearGradient id="steel" x1="0" x2="1">
-              <stop offset="0" stop-color="#5a5650"/><stop offset=".5" stop-color="#e2ded6"/><stop offset="1" stop-color="#6b6660"/>
-            </linearGradient>
-          </defs>
-          <path d="M18 5 C10 11 6 21 5 36 L18 31 Z" fill="#9e2a1d" stroke="#3a0d07" stroke-width="1"/>
-          <path d="M22 5 C30 11 34 21 35 36 L22 31 Z" fill="#9e2a1d" stroke="#3a0d07" stroke-width="1"/>
-          <path d="M9 18 L18 16 M7 25 L18 22 M31 18 L22 16 M33 25 L22 22" stroke="#3a0d07" stroke-opacity=".55" stroke-width=".8"/>
-          <rect x="18.2" y="3" width="3.6" height="99" rx="1.2" fill="url(#shaft)" stroke="#2a170a" stroke-width=".6"/>
-          <path d="M18 5 L22 5 L22 33 L18 33 Z" fill="#efe2c4" stroke="#6b5a40" stroke-width=".5"/>
-          <rect x="17.4" y="0" width="5.2" height="4" rx="1" fill="#2a170a"/>
-          <rect x="17.6" y="34" width="4.8" height="3" fill="#2a170a"/>
-          <rect x="17.6" y="94" width="4.8" height="3" fill="#2a170a"/>
-          <path d="M20 120 L9 99 L16 100.5 L16 96 L24 96 L24 100.5 L31 99 Z" fill="url(#steel)" stroke="#1e1c1a" stroke-width="1" stroke-linejoin="round"/>
-          <path d="M20 118 L20 97" stroke="#1e1c1a" stroke-opacity=".35" stroke-width=".8"/>
-        </svg>
-      </div>
-      <canvas id="wheel" role="img" aria-label="Spinning target of remaining decks"></canvas>
-      <button id="btnHub" class="hub" type="button" aria-label="Spin the target"><span>SPIN</span></button>
+      <canvas id="wheel" role="img" aria-label="Target of remaining decks"></canvas>
+      <button id="btnHub" class="hub" type="button" aria-label="Loose the arrow"><span>SHOOT</span></button>
     </div>
 
     <div class="controls">
-      <button id="btnSpin" class="btn primary" type="button">Spin the Target</button>
+      <button id="btnSpin" class="btn primary" type="button">Loose the Arrow</button>
       <button id="btnReset" class="btn ghost" type="button">Start Over</button>
     </div>
 
@@ -567,7 +633,7 @@
   <div class="card parchment">
     <span class="nail bl"></span><span class="nail br"></span>
     <div class="seal-wrap"><div class="wax seal-lg" id="resultSeal"></div></div>
-    <p class="eyebrow">By decree of the wheel</p>
+    <p class="eyebrow">The arrow has chosen</p>
     <p class="decree" id="resultDecree"></p>
     <h2 id="resultTitle"></h2>
     <p class="flavor" id="resultFlavor"></p>
@@ -581,9 +647,44 @@
     <p class="eyebrow">Destiny has spoken</p>
     <h2 id="finalTitle">The Decks Are Dealt</h2>
     <ul class="summary" id="finalSummary"></ul>
+    <p class="opener-line" id="openerLine" hidden></p>
     <div class="row">
-      <button class="btn primary" id="btnPlayAgain" type="button">Deal Again</button>
+      <button class="btn primary" id="btnTossOpen" type="button">Toss the Coin</button>
+      <button class="btn ghost" id="btnPlayAgain" type="button">Deal Again</button>
       <button class="btn ghost" id="btnChangeSetup" type="button">Change Setup</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="coinOverlay" hidden role="dialog" aria-modal="true" aria-labelledby="coinTitle">
+  <div class="card final parchment">
+    <span class="nail tl"></span><span class="nail tr"></span><span class="nail bl"></span><span class="nail br"></span>
+    <p class="eyebrow">First turn</p>
+    <h2 id="coinTitle">Fire or Castle</h2>
+    <div class="coin-scene">
+      <div class="coin" id="coin">
+        <div class="coin-face castle">
+          <span class="coin-glyph" data-icon="tower"></span>
+          <span class="coin-word">Castle</span>
+        </div>
+        <div class="coin-face fire">
+          <span class="coin-glyph" aria-hidden="true">
+            <svg viewBox="0 0 80 80">
+              <path fill="currentColor" d="M40 4c2 14-10 18-10 32 0 7 4 12 10 15-12-3-20-14-20-26 0-12 10-18 12-30 4 12 6 16 8 9z"/>
+              <path fill="#fff4d2" d="M40 30c2 9-6 13-6 21 0 6 3 9 6 11-7-1-12-8-12-15 0-7 6-11 7-19 2 7 4 9 5 2z"/>
+            </svg>
+          </span>
+          <span class="coin-word">Fire</span>
+        </div>
+      </div>
+    </div>
+    <ul class="sides" id="coinSides"></ul>
+    <button type="button" class="text-btn" id="btnSwapSides">Swap sides</button>
+    <p class="hint coin-follow" id="coinFollow" hidden></p>
+    <p class="flavor" id="coinResult" aria-live="polite">One face each. The coin names who opens.</p>
+    <div class="row">
+      <button class="btn primary" id="btnToss" type="button">Toss the Coin</button>
+      <button class="btn ghost" id="btnCoinBack" type="button">Back</button>
     </div>
   </div>
 </div>
@@ -828,6 +929,27 @@
       this.burst(ctx, t, 'bandpass', 2300, 5, 0.04, 0.55);
       this.tone(ctx, t, 'triangle', 820, 380, 0.035, 0.06);
     },
+    whoosh() {
+      const ctx = this.ensure(); if (!ctx) return;
+      const t = ctx.currentTime;
+      const src = ctx.createBufferSource(); src.buffer = this.noise;
+      const filter = ctx.createBiquadFilter(); filter.type = 'bandpass'; filter.Q.value = 0.7;
+      filter.frequency.setValueAtTime(2800, t);
+      filter.frequency.exponentialRampToValueAtTime(700, t + 0.14);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.45, t + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+      src.connect(filter).connect(g).connect(ctx.destination);
+      src.start(t); src.stop(t + 0.18);
+    },
+    clink(soft, at) {
+      const ctx = this.ensure(); if (!ctx) return;
+      const t = at ?? ctx.currentTime;
+      const vol = soft ? 0.05 : 0.11;
+      this.tone(ctx, t, 'triangle', soft ? 2400 : 3100, soft ? 700 : 900, soft ? 0.045 : 0.09, vol);
+      this.tone(ctx, t, 'sine', soft ? 4800 : 5200, 1200, 0.06, vol * 0.45);
+    },
     thunk() {
       const ctx = this.ensure(); if (!ctx) return;
       const t = ctx.currentTime;
@@ -856,8 +978,8 @@
      ========================================================= */
   let settings = loadSettings();
   let game = null;            // { players, remaining: deckIds[], assignments: [{player, deckId}], turn }
-  let rot = 0;                // wheel rotation in radians
   let spinning = false;
+  let tossing = false;
   let highlightIdx = -1;
   let highlightPulse = 0;
   let pendingResult = null;   // { player, deck }
@@ -871,17 +993,16 @@
   function newGame() {
     const players = settings.shufflePlayers ? shuffle(settings.players) : settings.players.slice();
     game = { players, remaining: enabledDecks().map(d => d.id), assignments: [], turn: 0 };
-    const n = game.remaining.length;
-    rot = n ? -Math.PI / n : 0;
     highlightIdx = -1; pendingResult = null;
+    hideArrow();
     hideOverlays();
     renderAll();
   }
 
   /* =========================================================
      Target rendering
-     The painted face is rendered once into an offscreen canvas and
-     simply rotated each frame, which keeps spins smooth on phones.
+     The painted face is rendered once into an offscreen canvas.
+     The board itself never turns; an arrow flies in to choose.
      ========================================================= */
   const canvas = $('wheel');
   const ctx = canvas.getContext('2d');
@@ -1170,7 +1291,6 @@
 
     ctx.save();
     ctx.translate(cx, cy);
-    ctx.rotate(rot);
     ctx.drawImage(face, -S / 2, -S / 2, S, S);
     if (highlightIdx >= 0 && n) {
       const arc = TAU / n;
@@ -1199,83 +1319,175 @@
   }
 
   /* =========================================================
-     Spinning
+     The shot
+     The board never moves. The arrow is loosed from the viewer's
+     hand — large, at the bottom of the screen, feathers closest —
+     and flies straight into the slice, shrinking as it goes.
+     The flight is a compositor animation of a pre-rastered bitmap:
+     no per-frame layout, no SVG repaint, no canvas redraw.
      ========================================================= */
-  const pointer = $('pointer');
-  const easeOut = (t) => 1 - Math.pow(1 - t, 4);
+  const arrow = $('arrow');
+  const arrowAim = $('arrowAim');
+  const FLIGHT_MS = 200;
+  const BITE_MS = 70;
+  const START_SCALE = 2.85;
+  const FLIGHT_EASE = 'linear';
+  let shotToken = 0;
 
-  function indexUnderPointer(n) {
-    const arc = TAU / n;
-    const a = ((-rot) % TAU + TAU) % TAU;
-    return Math.floor(a / arc) % n;
+  function cancelShotAnims() {
+    arrow.getAnimations().forEach(a => a.cancel());
+    arrowAim.getAnimations().forEach(a => a.cancel());
   }
 
-  function animatePointer(cls) {
-    pointer.classList.remove('nudge', 'strike');
-    void pointer.offsetWidth;
-    pointer.classList.add(cls);
+  function hideArrow() {
+    shotToken++;
+    cancelShotAnims();
+    arrow.classList.remove('show');
   }
+
+  // Tip sits at the arrow element's origin. deg 0 points the head down.
+  function poseArrow(x, y, deg, scale, sink) {
+    arrow.style.transform = `translate3d(${x}px,${y}px,0)`;
+    arrowAim.style.transform = sink
+      ? `rotate(${deg}deg) scale(${scale}) translateY(${sink}px)`
+      : `rotate(${deg}deg) scale(${scale})`;
+  }
+
+  // Inline SVG is re-rasterized when scaled, which stutters on phones.
+  // Bake it once into an image so the GPU only slides a texture.
+  function rasterArrow() {
+    const svg = arrowAim.querySelector('svg');
+    if (!svg) return;
+    svg.setAttribute('width', '240');
+    svg.setAttribute('height', '720');
+    const xml = new XMLSerializer().serializeToString(svg);
+    const img = new Image();
+    img.alt = '';
+    img.draggable = false;
+    img.decoding = 'sync';
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml);
+    arrowAim.replaceChildren(img);
+    if (img.decode) img.decode().catch(() => {});
+  }
+  rasterArrow();
 
   function spin() {
     if (spinning || !game || gameDone()) return;
     const n = remainingDecks().length;
     if (n === 0) return;
 
-    audio.ensure(); // unlock audio on the user gesture
+    audio.ensure();
     spinning = true;
     highlightIdx = -1;
     setControlsEnabled(false);
+    const token = ++shotToken;
+    cancelShotAnims();
 
     const arc = TAU / n;
     const winner = randInt(n);
-    const offset = arc * (0.5 + (rand() * 0.8 - 0.4));   // land inside the slice, never on a peg
-    const target = winner * arc + offset;
-    const turns = reduceMotion.matches ? 1 : 5 + rand() * 3;
-    const k = Math.ceil((rot + turns * TAU + target) / TAU);
-    const finalRot = k * TAU - target;
-    const startRot = rot;
-    const delta = finalRot - startRot;
-    const duration = reduceMotion.matches ? 900 : 4800 + rand() * 1600;
-    const t0 = performance.now();
-    let lastIdx = indexUnderPointer(n);
+    const impactAngle = -Math.PI / 2 + winner * arc + arc * (0.28 + rand() * 0.44);
+    const impactR = 0.7 + rand() * 0.06;
 
-    function frame(now) {
-      const p = clamp((now - t0) / duration, 0, 1);
-      rot = startRot + delta * easeOut(p);
-      const idx = indexUnderPointer(n);
-      if (idx !== lastIdx) { lastIdx = idx; audio.tick(); animatePointer('nudge'); }
-      drawWheel();
-      if (p < 1) { requestAnimationFrame(frame); return; }
-      rot = finalRot % TAU;
-      finishSpin(winner);
+    const board = wheelWrap.getBoundingClientRect();
+    const cx = board.left + board.width / 2;
+    const cy = board.top + board.height / 2;
+    const endX = cx + Math.cos(impactAngle) * impactR * board.width / 2;
+    const endY = cy + Math.sin(impactAngle) * impactR * board.height / 2;
+
+    const aw = Math.max(20, board.width * 0.058);
+    const ah = aw * 3.2;
+    arrowAim.style.width = aw + 'px';
+    arrowAim.style.height = ah + 'px';
+    arrowAim.style.marginLeft = (-aw / 2) + 'px';
+    arrowAim.style.marginTop = (-ah) + 'px';
+
+    // Feathers hang below the tip, toward the hand. Sit the tip just
+    // under the wood when the shaft is taller than the gap; otherwise
+    // leave the whole arrow in view, feathers at the bottom edge.
+    const startX = cx + (rand() - 0.5) * board.width * 0.06;
+    const tail = ah * START_SCALE;
+    let startY = window.innerHeight - tail - 8;
+    const minTip = board.bottom + 24;
+    if (startY < minTip) startY = Math.min(minTip, window.innerHeight - 28);
+    const travel = Math.atan2(endY - startY, endX - startX);
+    const deg = travel * 180 / Math.PI - 90;
+
+    poseArrow(startX, startY, deg, START_SCALE, 0);
+    arrow.classList.add('show');
+
+    if (reduceMotion.matches) {
+      poseArrow(endX, endY, deg, 1, 0);
+      finishSpin(winner, deg, endX, endY, token);
+      return;
     }
-    requestAnimationFrame(frame);
+
+    // One frame so the layer is promoted and the bitmap is on the GPU
+    // before the first step of the flight.
+    requestAnimationFrame(() => {
+      if (token !== shotToken) return;
+      audio.whoosh();
+      const move = arrow.animate(
+        [
+          { transform: `translate3d(${startX}px,${startY}px,0)` },
+          { transform: `translate3d(${endX}px,${endY}px,0)` },
+        ],
+        { duration: FLIGHT_MS, easing: FLIGHT_EASE, fill: 'forwards' }
+      );
+      arrowAim.animate(
+        [
+          { transform: `rotate(${deg}deg) scale(${START_SCALE})` },
+          { transform: `rotate(${deg}deg) scale(1)` },
+        ],
+        { duration: FLIGHT_MS, easing: FLIGHT_EASE, fill: 'forwards' }
+      );
+      move.finished.then(() => {
+        if (token !== shotToken) return;
+        poseArrow(endX, endY, deg, 1, 0);
+        cancelShotAnims();
+        finishSpin(winner, deg, endX, endY, token);
+      }).catch(() => {});
+    });
   }
 
-  function finishSpin(winnerIdx) {
-    spinning = false;
+  function finishSpin(winnerIdx, deg, x, y, token) {
     const deck = remainingDecks()[winnerIdx];
     const player = currentPlayer();
     highlightIdx = winnerIdx;
-    animatePointer('strike');
+    highlightPulse = 1.6;
+    drawWheel();
     audio.thunk();
-    if (navigator.vibrate) { try { navigator.vibrate([40, 30, 20]); } catch { /* unsupported */ } }
+    if (navigator.vibrate) { try { navigator.vibrate(12); } catch { /* unsupported */ } }
 
-    const pulseStart = performance.now();
-    const pulseDur = reduceMotion.matches ? 200 : 1100;
-    (function pulse(now) {
-      highlightPulse = (now - pulseStart) / 90;
-      drawWheel();
-      if (now - pulseStart < pulseDur) { requestAnimationFrame(pulse); return; }
+    if (reduceMotion.matches) {
+      spinning = false;
       pendingResult = { player, deck };
       showResult(player, deck);
-    })(pulseStart);
+      return;
+    }
+
+    const bite = arrowAim.animate(
+      [
+        { transform: `rotate(${deg}deg) scale(1) translateY(0px)` },
+        { transform: `rotate(${deg + 0.7}deg) scale(1) translateY(2.2px)`, offset: 0.4 },
+        { transform: `rotate(${deg}deg) scale(1) translateY(0.4px)` },
+      ],
+      { duration: BITE_MS, easing: 'linear', fill: 'forwards' }
+    );
+    bite.finished.then(() => {
+      if (token !== shotToken) return;
+      poseArrow(x, y, deg, 1, 0.4);
+      cancelShotAnims();
+      spinning = false;
+      pendingResult = { player, deck };
+      showResult(player, deck);
+    }).catch(() => {});
   }
 
   function commitResult() {
     if (!pendingResult) return;
     const { player, deck } = pendingResult;
     pendingResult = null;
+    hideArrow();
     game.assignments.push({ player, deckId: deck.id });
     game.remaining = game.remaining.filter(id => id !== deck.id);
     game.turn += 1;
@@ -1310,7 +1522,7 @@
       return;
     }
     const short = decksN < total ? `<span class="meta warn">Only ${decksN} deck${decksN === 1 ? '' : 's'} for ${total} players — the last ${total - decksN} will go without.</span>` : '';
-    el.innerHTML = `<span class="ribbon">Spinning for <strong>${escapeHtml(currentPlayer())}</strong></span><span class="meta">Turn ${game.turn + 1} of ${Math.min(total, decksN)}</span>${short}`;
+    el.innerHTML = `<span class="ribbon">A shot for <strong>${escapeHtml(currentPlayer())}</strong></span><span class="meta">Turn ${game.turn + 1} of ${Math.min(total, decksN)}</span>${short}`;
   }
 
   function renderChips() {
@@ -1331,7 +1543,7 @@
         const d = deckById(a.deckId);
         return `<li><span class="wax" style="${sealVars(d)}">${iconMarkup(d.icon)}</span><span><span class="who">${escapeHtml(p)}</span><br><span class="what">${escapeHtml(d.name)}</span></span></li>`;
       }
-      return `<li class="pending"><span class="wax empty">${i + 1}</span><span><span class="who">${escapeHtml(p)}</span><br><span class="what">${i === game.turn ? 'Awaiting the wheel…' : 'Waiting'}</span></span></li>`;
+      return `<li class="pending"><span class="wax empty">${i + 1}</span><span><span class="who">${escapeHtml(p)}</span><br><span class="what">${i === game.turn ? 'Awaiting the shot…' : 'Waiting'}</span></span></li>`;
     }).join('');
   }
 
@@ -1365,13 +1577,124 @@
     }).join('') + game.players.slice(game.assignments.length).map(p =>
       `<li><span class="wax empty">–</span><span class="who">${escapeHtml(p)}</span><span class="what" style="font-style:italic;opacity:.7">no deck left</span></li>`
     ).join('');
+    $('btnTossOpen').hidden = game.assignments.length < 2;
+    renderOpenerLine();
     $('finalOverlay').hidden = false;
-    $('btnPlayAgain').focus({ preventScroll: true });
+    ($(game.assignments.length >= 2 ? 'btnTossOpen' : 'btnPlayAgain')).focus({ preventScroll: true });
   }
 
   function hideOverlays() {
+    $('coin').getAnimations().forEach(a => a.cancel());
     $('resultOverlay').hidden = true;
     $('finalOverlay').hidden = true;
+    $('coinOverlay').hidden = true;
+    tossing = false;
+  }
+
+  /* =========================================================
+     Coin toss — fire or castle, for the opening turn
+     ========================================================= */
+  const coin = $('coin');
+  const FLAME_SVG = `<svg viewBox="0 0 80 80" aria-hidden="true"><path fill="currentColor" d="M40 4c2 14-10 18-10 32 0 7 4 12 10 15-12-3-20-14-20-26 0-12 10-18 12-30 4 12 6 16 8 9z"/><path fill="#fff4d2" d="M40 30c2 9-6 13-6 21 0 6 3 9 6 11-7-1-12-8-12-15 0-7 6-11 7-19 2 7 4 9 5 2z"/></svg>`;
+
+  function setCoinAngle(deg) {
+    coin.style.transform = `rotateX(18deg) rotateY(${deg}deg)`;
+  }
+
+  function ensureToss() {
+    if (game.toss || game.assignments.length < 2) return;
+    const names = [game.assignments[0].player, game.assignments[1].player];
+    if (rand() < 0.5) names.reverse();
+    game.toss = { castle: names[0], fire: names[1], face: null };
+  }
+
+  function renderOpenerLine() {
+    const el = $('openerLine');
+    if (!game?.toss?.face) { el.hidden = true; return; }
+    const name = game.toss[game.toss.face];
+    const face = game.toss.face === 'fire' ? 'Fire' : 'Castle';
+    el.hidden = false;
+    el.innerHTML = `${face}. <strong>${escapeHtml(name)}</strong> takes the first turn.`;
+  }
+
+  function renderToss() {
+    const t = game.toss;
+    const chosen = t.face;
+    $('coinSides').innerHTML = [
+      ['castle', 'Castle', t.castle, iconMarkup('tower')],
+      ['fire', 'Fire', t.fire, FLAME_SVG],
+    ].map(([key, label, name, glyph]) =>
+      `<li class="${chosen === key ? 'chosen' : ''}"><span class="side-badge ${key}">${glyph}</span><span class="label">${label}</span><span class="player">${escapeHtml(name)}</span></li>`
+    ).join('');
+    const rest = game.assignments.slice(2).map(a => a.player);
+    const follow = $('coinFollow');
+    follow.hidden = rest.length === 0;
+    if (rest.length) follow.textContent = `Then ${rest.join(', ')}, in the order dealt.`;
+    const result = $('coinResult');
+    if (tossing) result.textContent = 'The coin is in the air…';
+    else if (t.face) result.innerHTML = `<strong>${t.face === 'fire' ? 'Fire' : 'Castle'}.</strong> ${escapeHtml(t[t.face])} takes the first turn.`;
+    else result.textContent = 'One face each. The coin names who opens.';
+    $('btnToss').textContent = t.face ? 'Toss again' : 'Toss the Coin';
+    $('btnToss').disabled = tossing;
+    $('btnSwapSides').disabled = tossing;
+    if (!tossing) setCoinAngle(t.face === 'fire' ? 180 : 0);
+    renderOpenerLine();
+  }
+
+  function openCoin() {
+    if (game.assignments.length < 2) return;
+    ensureToss();
+    tossing = false;
+    renderToss();
+    $('coinOverlay').hidden = false;
+    $('btnToss').focus({ preventScroll: true });
+  }
+
+  function tossCoin() {
+    if (tossing || !game.toss) return;
+    const ctx = audio.ensure();
+    const start = game.toss.face === 'fire' ? 180 : 0;
+    tossing = true;
+    game.toss.face = null;
+    renderToss();
+    coin.getAnimations().forEach(a => a.cancel());
+
+    const fire = rand() < 0.5;
+    const turns = reduceMotion.matches ? 0 : 3;
+    let end = turns * 360 + (fire ? 180 : 0);
+    if (end <= start) end += 360;
+    const delta = end - start;
+    const duration = reduceMotion.matches ? 160 : 680;
+    const steps = reduceMotion.matches ? 1 : 28;
+    const frames = [];
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const e = 1 - Math.pow(1 - t, 3);
+      frames.push({
+        transform: `rotateX(18deg) rotateY(${start + delta * e}deg)`,
+        offset: t,
+      });
+    }
+
+    if (ctx && !reduceMotion.matches) {
+      const t0 = ctx.currentTime + 0.02;
+      for (let angle = 180; angle < delta - 40; angle += 180) {
+        const p = angle / delta;
+        const when = t0 + (1 - Math.pow(1 - p, 1 / 3)) * duration / 1000;
+        audio.clink(true, when);
+      }
+    }
+
+    const spin = coin.animate(frames, { duration, easing: 'linear', fill: 'forwards' });
+    spin.finished.then(() => {
+      if (!tossing || !game?.toss) return;
+      setCoinAngle(fire ? 180 : 0);
+      spin.cancel();
+      tossing = false;
+      game.toss.face = fire ? 'fire' : 'castle';
+      audio.clink(false);
+      renderToss();
+    }).catch(() => {});
   }
 
   /* =========================================================
@@ -1446,7 +1769,7 @@
     saveSettings();
     closeSettings();
     newGame();
-    toast('The table is set. Spin away.');
+    toast('The table is set. Take your shot.');
   }
 
   $('btnSettings').addEventListener('click', openSettings);
@@ -1508,6 +1831,17 @@
   $('resultOverlay').addEventListener('click', (e) => { if (e.target === e.currentTarget) commitResult(); });
   $('btnPlayAgain').addEventListener('click', newGame);
   $('btnChangeSetup').addEventListener('click', () => { $('finalOverlay').hidden = true; openSettings(); });
+  $('btnTossOpen').addEventListener('click', openCoin);
+  $('btnToss').addEventListener('click', tossCoin);
+  $('btnCoinBack').addEventListener('click', () => { if (!tossing) $('coinOverlay').hidden = true; });
+  $('btnSwapSides').addEventListener('click', () => {
+    if (tossing || !game.toss) return;
+    const { castle, fire } = game.toss;
+    game.toss.castle = fire;
+    game.toss.fire = castle;
+    game.toss.face = null;
+    renderToss();
+  });
 
   const soundBtn = $('btnSound');
   function renderSound() { soundBtn.setAttribute('aria-pressed', settings.muted ? 'false' : 'true'); }
@@ -1521,10 +1855,12 @@
     const tag = (e.target.tagName || '').toLowerCase();
     if (tag === 'input' || tag === 'textarea' || dlg.open) return;
     if (e.key === 'Escape') {
+      if (!$('coinOverlay').hidden && !tossing) { e.preventDefault(); $('coinOverlay').hidden = true; return; }
       if (!$('resultOverlay').hidden) { e.preventDefault(); commitResult(); }
       return;
     }
     if (e.key === ' ' || e.key === 'Enter') {
+      if (!$('coinOverlay').hidden) return;
       if (!$('resultOverlay').hidden) { e.preventDefault(); commitResult(); return; }
       if (!$('finalOverlay').hidden) return;
       if (tag === 'button') return;

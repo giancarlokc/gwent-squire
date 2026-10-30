@@ -1,0 +1,25 @@
+{
+  "name": "gwent-deck-picker",
+  "main": "worker.js",
+  "account_id": "226a821dde438db4ad06368d2c757aa0",
+  "compatibility_date": "2026-10-29",
+  "workers_dev": false,
+  "observability": {
+    "enabled": true,
+    "traces": {
+      "enabled": true
+    }
+  },
+  "assets": {
+    "directory": ".",
+    "binding": "ASSETS",
+    "html_handling": "none",
+    "run_worker_first": true
+  },
+  "routes": [
+    {
+      "pattern": "stillhumanlabs.com/stilllabs*",
+      "zone_name": "stillhumanlabs.com"
+    }
+  ]
+}
